@@ -1,0 +1,6 @@
+#!/bin/bash
+if hyprctl clients -j | jq -e '.[] | select(.class == "org.mozilla.Thunderbird")' > /dev/null 2>&1; then
+    echo '{"text": "󰇮", "tooltip": "Thunderbird", "class": "running"}'
+else
+    echo '{"text": "", "tooltip": "", "class": "stopped"}'
+fi

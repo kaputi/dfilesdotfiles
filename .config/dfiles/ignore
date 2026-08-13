@@ -1,2 +1,4 @@
 # dfiles ignore file — gitignore syntax.
 # Patterns here are enforced by git itself (core.excludesFile).
+.zcompdump*
+*.log

@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Maps every app's WM_CLASS to its real Icon by symlinking under the
+# user icon theme. Fixes Waybar's hyprland/window `icon: true` and
+# fuzzel-dmenu's icon protocol, which both look up icons by class name
+# rather than reading .desktop files. Re-run after installing new apps.
+#
+# To undo: rm ~/.local/share/icons/hicolor/scalable/apps/* and run
+#   gtk-update-icon-cache ~/.local/share/icons/hicolor
+# (only symlinks live there — safe to wipe.)
+
+set -euo pipefail
+
+target_dir="$HOME/.local/share/icons/hicolor/scalable/apps"
+mkdir -p "$target_dir"
+
+icon_search_dirs=(
+    "$HOME/.local/share/icons"
+    "$HOME/.local/share/flatpak/exports/share/icons"
+    /var/lib/flatpak/exports/share/icons
+    /usr/local/share/icons
+    /usr/share/icons
+    /usr/share/pixmaps
+)
+
+desktop_search_dirs=(
+    "$HOME/.local/share/applications"
+    "$HOME/.local/share/flatpak/exports/share/applications"
+    /var/lib/flatpak/exports/share/applications
+    /usr/local/share/applications
+    /usr/share/applications
+)
+
+resolve_icon_path() {
+    local name=$1
+    if [[ $name == /* && -f $name ]]; then
+        echo "$name"
+        return 0
+    fi
+    local dir found
+    for dir in "${icon_search_dirs[@]}"; do
+        [[ -d $dir ]] || continue
+        # Prefer scalable SVG, then PNG (largest first via sort).
+        # -L: follow symlinks (Flatpak icons are symlinks into the per-app export tree).
+        found=$(find -L "$dir" -maxdepth 6 -type f -iname "${name}.svg" 2>/dev/null | head -n1)
+        [[ -n $found ]] && { echo "$found"; return 0; }
+        found=$(find -L "$dir" -maxdepth 6 -type f -iname "${name}.png" 2>/dev/null | sort -r | head -n1)
+        [[ -n $found ]] && { echo "$found"; return 0; }
+    done
+    return 1
+}
+
+declare -A seen
+linked=0
+skipped=0
+
+for dir in "${desktop_search_dirs[@]}"; do
+    [[ -d $dir ]] || continue
+    while IFS= read -r -d '' df; do
+        wmclass=$(awk -F= '/^StartupWMClass=/ { print $2; exit }' "$df")
+        [[ -z $wmclass ]] && continue
+        [[ -n ${seen[$wmclass]:-} ]] && continue
+        seen[$wmclass]=1
+
+        icon_name=$(awk -F= '/^Icon=/ { print $2; exit }' "$df")
+        [[ -z $icon_name ]] && continue
+        [[ $icon_name == "$wmclass" ]] && continue
+
+        if ! icon_path=$(resolve_icon_path "$icon_name"); then
+            printf 'skip   %-30s (icon "%s" not found)\n' "$wmclass" "$icon_name" >&2
+            ((skipped+=1))
+            continue
+        fi
+
+        ext="${icon_path##*.}"
+        link="$target_dir/${wmclass}.${ext}"
+        if [[ -L $link && $(readlink "$link") == "$icon_path" ]]; then
+            continue
+        fi
+        ln -sf "$icon_path" "$link"
+        printf 'link   %-30s -> %s\n' "$wmclass" "$icon_path"
+        ((linked+=1))
+    done < <(find "$dir" -maxdepth 2 -name '*.desktop' -print0 2>/dev/null)
+done
+
+if (( linked > 0 )); then
+    command -v gtk-update-icon-cache >/dev/null \
+        && gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+    pkill -SIGUSR2 waybar 2>/dev/null || true
+fi
+
+echo
+echo "linked $linked, skipped $skipped"

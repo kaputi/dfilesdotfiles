@@ -1,0 +1,31 @@
+#!/bin/bash
+force_kill_patterns=(
+    "steam_app_"
+    "gamescope"
+)
+
+info=$(hyprctl activewindow -j)
+workspace=$(echo "$info" | jq -r '.workspace.name')
+class=$(echo "$info" | jq -r '.class')
+
+force_kill=false
+for pattern in "${force_kill_patterns[@]}"; do
+    if [[ "$class" == *"$pattern"* ]]; then
+        force_kill=true
+        break
+    fi
+done
+
+if $force_kill; then
+    pid=$(echo "$info" | jq -r '.pid')
+    kill -9 "$pid" 2>/dev/null
+    sleep 0.5
+    pkill -9 -f gamescopereaper 2>/dev/null
+    pkill -9 -f winedevice.exe 2>/dev/null
+elif [ "$workspace" = "special:thundermail" ] && [ "$class" = "org.mozilla.Thunderbird" ]; then
+    :
+elif [ "$class" = "org.mozilla.Thunderbird" ]; then
+    hyprctl dispatch movetoworkspacesilent special:thundermail
+else
+    hyprctl dispatch killactive
+fi

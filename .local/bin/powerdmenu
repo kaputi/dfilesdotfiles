@@ -1,0 +1,18 @@
+#!/bin/bash
+# Power menu — fuzzel as the dmenu backend (Wayland-native replacement for the old X11 dmenu version).
+# Bound to Super+0 in hyprland.conf. Edit the list below to add/remove entries.
+
+choice=$(printf '%s\n' \
+  "Shutdown" \
+  "Restart" \
+  "Lock" \
+  "Logout" \
+  | fuzzel --dmenu --prompt "Power: ")
+
+case "$choice" in
+  Lock)     hyprlock ;;
+  Logout)   hyprctl dispatch exit ;;
+  Restart)  systemctl reboot ;;
+  Shutdown) systemctl poweroff ;;
+  "")       exit 0 ;;   # user pressed Esc
+esac

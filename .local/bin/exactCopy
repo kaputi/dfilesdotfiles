@@ -1,0 +1,30 @@
+#!/bin/sh
+# exactCopy — exact copy: archive mode + hardlinks, ACLs, xattrs.
+# Usage: exactCopy <src> <dst> [extra rsync options...]
+#
+# Trailing-slash rule (same as rsync):
+#   exactCopy src/ dst   -> copies the CONTENTS of src into dst
+#   exactCopy src  dst   -> creates dst/src
+
+set -eu
+
+if [ "$#" -lt 2 ]; then
+    echo "Usage: exactCopy <src> <dst> [extra rsync options...]" >&2
+    exit 1
+fi
+
+src=$1
+dst=$2
+shift 2
+
+if [ ! -e "$src" ]; then
+    echo "exactCopy: source '$src' does not exist" >&2
+    exit 1
+fi
+
+exec rsync -aHAX \
+    --info=progress2 \
+    --no-inc-recursive \
+    --partial \
+    --exclude=lost+found \
+    "$@" "$src" "$dst"

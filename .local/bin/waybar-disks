@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+icon="󰋊"
+mounts=(/ /home /mnt/arr1 /mnt/arr2 /mnt/backup)
+
+# KiB -> human readable (e.g. 856G, 1.4T)
+human() {
+    awk -v k="$1" 'BEGIN {
+        split("K M G T P", u, " ")
+        i = 1
+        while (k >= 1024 && i < 5) { k /= 1024; i++ }
+        printf (k < 10 && i > 1) ? "%.1f%s" : "%.0f%s", k, u[i]
+    }'
+}
+
+tooltip=""
+for m in "${mounts[@]}"; do
+    line=$(df --output=size,used,avail,pcent "$m" 2>/dev/null | tail -n 1) || continue
+    total_k=$(echo "$line" | awk '{print $1}')
+    used_k=$(echo "$line" | awk '{print $2}')
+    avail_k=$(echo "$line" | awk '{print $3}')
+    pct=$(echo "$line" | awk '{print $4}' | tr -d '%')
+
+    free_h=$(human "$avail_k")
+
+    total_g=$(awk "BEGIN {printf \"%.1f\", $total_k / 1048576}")
+    used_g=$(awk "BEGIN {printf \"%.1f\", $used_k / 1048576}")
+
+    filled=$((pct / 10))
+    bar=""
+    for ((i = 0; i < 10; i++)); do
+        if ((i < filled)); then bar="${bar}█"; else bar="${bar}░"; fi
+    done
+
+    if [ -n "$tooltip" ]; then
+        tooltip="${tooltip}\n"
+    fi
+    tooltip="${tooltip}$(printf '%-14s %7s / %7s GiB  (%2d%%)  %6s free  %s' "$m" "$used_g" "$total_g" "$pct" "$free_h" "$bar")"
+done
+
+printf '{"text": "%s", "tooltip": "%s"}\n' "$icon" "$tooltip"

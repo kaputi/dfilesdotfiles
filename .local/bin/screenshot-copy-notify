@@ -1,0 +1,6 @@
+#!/bin/sh
+# copy-command for satty: forwards stdin to wl-copy, then fires a transient
+# "Copied to clipboard" notification that swaync auto-dismisses and never
+# adds to the panel/history (see wezterm.lua for the same pattern).
+wl-copy
+notify-send -a Satty -t 1000 -h boolean:transient:true "Copied" "Copied to clipboard."

@@ -1,0 +1,182 @@
+ # ===== Monitors =====
+# Run `hyprctl monitors` to find your output names. Adjust resolution/refresh/position.
+monitor = DP-1, 2560x1440@144, 0x0, 1
+monitor = HDMI-A-1, 1920x1080@60, 2560x0, 1, transform, 3
+# transform: 0=normal 1=90° 2=180° 3=270°. Use 1 or 3 for vertical, depending on which side faces up.
+
+# ===== Environment =====
+env = XCURSOR_SIZE,24
+env = HYPRCURSOR_SIZE,24
+env = ELECTRON_OZONE_PLATFORM_HINT,wayland   # native Wayland for Electron (VSCode, your TS apps)
+env = MOZ_ENABLE_WAYLAND,1                   # Firefox native Wayland
+env = QT_QPA_PLATFORM,wayland;xcb            # Qt apps prefer Wayland, fall back to xcb
+env = SDL_VIDEODRIVER,wayland                # SDL games (some emulators)
+env = _JAVA_AWT_WM_NONREPARENTING,1          # fix Java GUI apps
+env = QT_QPA_PLATFORMTHEME,qt6ct
+env = GTK_THEME,Adwaita-dark
+env = XCURSOR_THEME,phinger-cursors-light
+
+# ===== Autostart =====
+exec-once = /usr/lib/polkit-kde-authentication-agent-1
+exec-once = waybar
+exec-once = mako
+exec-once = hyprpaper
+exec-once = wl-paste --type text --watch cliphist store
+exec-once = wl-paste --type image --watch cliphist store
+
+# ===== Input =====
+input {
+    kb_layout = gb
+    follow_mouse = 1
+    sensitivity = 0
+    touchpad {
+        natural_scroll = false
+    }
+}
+
+# ===== General =====
+general {
+    gaps_in = 3
+    gaps_out = 1
+    border_size = 1
+
+    col.active_border = rgba(88c0d0ee)
+    col.inactive_border = rgba(595959aa)
+    layout = dwindle             # dwindle (binary, like 'fair') or master (master/stack, like 'tile')
+}
+
+decoration {
+    rounding = 0
+    blur {
+        enabled = true
+        size = 3
+        passes = 1
+    }
+}
+
+animations {
+    enabled = true
+    bezier = ease, 0.25, 0.1, 0.25, 1
+    animation = windows, 1, 4, ease
+    animation = fade, 1, 4, ease
+    animation = workspaces, 1, 4, ease
+}
+
+dwindle {
+    pseudotile = true
+    preserve_split = true
+}
+
+master {
+    new_status = slave           # new windows go to stack, master stays
+    # orientation = bottom        # uncomment for tile.bottom equivalent (master on top, stack below)
+}
+
+# ===== Keybinds (ported from your AwesomeWM config) =====
+$mod = SUPER
+
+# --- Apps & Launchers ---
+bind = $mod, Return, exec, wezterm
+bind = $mod, F1, exec, wezterm start -- yazi               # file manager
+bind = $mod, F2, exec, brave
+bind = $mod, 0, exec, powerdmenu                            # your custom power menu
+bind = $mod, space, exec, fuzzel                            # .desktop app launcher
+bind = $mod, d, exec, launch-cmd                            # any PATH binary (script in section 3.5)
+
+# --- WM control ---
+bind = $mod CTRL, r, exec, hyprctl reload                   # reload config (was awesome.restart)
+bind = $mod CTRL, q, exit                                   # quit Hyprland
+bind = $mod, X, exec, hyprlock                              # screen lock
+bind = $mod, equal, exec, pkill -SIGUSR1 waybar             # toggle waybar (replaces systray toggle)
+
+# --- Window control (your clientkeys) ---
+bind = $mod, q, killactive                                  # close window
+bind = $mod, f, fullscreen, 0                               # true fullscreen (your 'max')
+bind = $mod, m, fullscreen, 1                               # maximize within tiles (no border)
+bind = $mod CTRL, space, togglefloating                     # floating toggle
+bind = $mod, t, pin                                         # pin to all workspaces (your 'keep on top')
+bind = $mod CTRL, Return, layoutmsg, swapwithmaster         # swap focused with master
+
+# --- Layout switching (replaces awful.layout.inc) ---
+bind = $mod, w, exec, hyprctl keyword general:layout dwindle
+bind = $mod SHIFT, w, exec, hyprctl keyword general:layout master
+
+# --- Focus: vim directional (separated from resize per your preference) ---
+bind = $mod, h, movefocus, l
+bind = $mod, j, movefocus, d
+bind = $mod, k, movefocus, u
+bind = $mod, l, movefocus, r
+bind = $mod, Tab, focuscurrentorlast                        # alternate with last focused
+
+# --- Move window: vim directional ---
+bind = $mod SHIFT, h, movewindow, l
+bind = $mod SHIFT, j, movewindow, d
+bind = $mod SHIFT, k, movewindow, u
+bind = $mod SHIFT, l, movewindow, r
+
+# --- Resize active window: vim directional (works tiled and floating) ---
+bind = $mod CTRL, h, resizeactive, -50 0
+bind = $mod CTRL, j, resizeactive, 0 50
+bind = $mod CTRL, k, resizeactive, 0 -50
+bind = $mod CTRL, l, resizeactive, 50 0
+
+# --- Mouse drag (hold mod, click+drag) ---
+bindm = $mod, mouse:272, movewindow                         # left-button drag = move
+bindm = $mod, mouse:273, resizewindow                       # right-button drag = resize
+
+# --- Workspaces ---
+bind = $mod, 1, workspace, 1
+bind = $mod, 2, workspace, 2
+bind = $mod, 3, workspace, 3
+bind = $mod, 4, workspace, 4
+bind = $mod, 5, workspace, 5
+bind = $mod, 6, workspace, 6
+bind = $mod, 7, workspace, 7
+bind = $mod, 8, workspace, 8
+bind = $mod, 9, workspace, 9
+
+bind = $mod SHIFT, 1, movetoworkspace, 1
+bind = $mod SHIFT, 2, movetoworkspace, 2
+bind = $mod SHIFT, 3, movetoworkspace, 3
+bind = $mod SHIFT, 4, movetoworkspace, 4
+bind = $mod SHIFT, 5, movetoworkspace, 5
+bind = $mod SHIFT, 6, movetoworkspace, 6
+bind = $mod SHIFT, 7, movetoworkspace, 7
+bind = $mod SHIFT, 8, movetoworkspace, 8
+bind = $mod SHIFT, 9, movetoworkspace, 9
+
+bind = $mod, Escape, workspace, previous                    # last workspace (your 'last tag')
+bind = $mod, mouse_down, workspace, e+1                     # mod+wheel = workspace switch
+bind = $mod, mouse_up, workspace, e-1
+
+# --- Screenshots ---
+bind = , Print, exec, grim -g "$(slurp)" - | swappy -f -    # region → swappy editor
+bind = SHIFT, Print, exec, grim - | wl-copy                  # full screen → clipboard
+
+# --- Clipboard history ---
+bind = $mod, V, exec, cliphist list | fuzzel --dmenu | cliphist decode | wl-copy
+
+# --- Media keys ---
+bindl = , XF86AudioPlay, exec, playerctl play-pause
+bindl = , XF86AudioNext, exec, playerctl next
+bindl = , XF86AudioPrev, exec, playerctl previous
+bindel = , XF86AudioRaiseVolume, exec, pamixer -i 5
+bindel = , XF86AudioLowerVolume, exec, pamixer -d 5
+bindel = , XF86AudioMute, exec, pamixer -t
+bindel = , XF86MonBrightnessUp, exec, brightnessctl set +5%
+bindel = , XF86MonBrightnessDown, exec, brightnessctl set 5%-
+
+# Workspace assignment for vertical monitor (optional — adjust as you like)
+# workspace = 9, monitor:HDMI-A-1, default:true
+
+# ===== Intentionally dropped from your Awesome config =====
+# - Mod+c (quickconfig)             — no longer used
+# - Mod+/ (help popup)              — no native equivalent; can add a fuzzel cheatsheet later
+# - Mod+u (jump to urgent)          — Hyprland fires urgent events but no built-in dispatcher
+# - Mod+n (minimize)                — Hyprland has no minimize concept
+# - Mod+Ctrl+1..9 (multi-tag join)  — Hyprland workspaces are single-select
+# - Mod+Ctrl+Shift+1..9 (sticky)    — closest is Mod+t (pin to all workspaces)
+# - Mod+Ctrl+m / Mod+Shift+m (V/H maximize) — not directly available
+# - Mod+Ctrl+h/l (column count)     — dwindle/master are not multi-column
+# - Mod+Shift+h/l (master count)    — replaced by directional move; use 'hyprctl dispatch layoutmsg addmaster' if missed
+

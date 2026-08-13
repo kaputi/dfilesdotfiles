@@ -1,0 +1,263 @@
+{
+  "hyprland/workspaces": {
+    "format": "{name}",
+    "on-click": "activate"
+  },
+
+  "hyprland/window": {
+    "separate-outputs": true,
+    "icon": true,
+    "icon-size": 16,
+    "format": "{title}",
+    "format-empty": "",
+    "max-length": 70
+  },
+
+  "clock": {
+    "format": "{:%H:%M  %a %d %b}",
+    "tooltip-format": "<tt><big>{:%Y %B}</big>\n{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "mode-mon-col": 3,
+      "weeks-pos": "right",
+      "on-scroll": 1,
+      "format": {
+        "months":   "<span color='#ffead3'><b>{}</b></span>",
+        "days":     "<span color='#ecc6d9'>{}</span>",
+        "weeks":    "<span color='#99ffdd'><i>W{}</i></span>",
+        "weekdays": "<span color='#ffcc66'><b>{}</b></span>",
+        "today":    "<span color='#ff6699'><b><u>{}</u></b></span>"
+      }
+    },
+    "actions": {
+      "on-click-right": "mode",
+      "on-scroll-up":   "shift_up",
+      "on-scroll-down": "shift_down"
+    }
+  },
+
+  "clock#time": {
+    "format": "{:%H:%M}",
+    "tooltip-format": "<tt><big>{:%Y %B}</big>\n{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "mode-mon-col": 3,
+      "weeks-pos": "right",
+      "on-scroll": 1,
+      "format": {
+        "months":   "<span color='#ffead3'><b>{}</b></span>",
+        "days":     "<span color='#ecc6d9'>{}</span>",
+        "weeks":    "<span color='#99ffdd'><i>W{}</i></span>",
+        "weekdays": "<span color='#ffcc66'><b>{}</b></span>",
+        "today":    "<span color='#ff6699'><b><u>{}</u></b></span>"
+      }
+    },
+    "actions": {
+      "on-click-right": "mode",
+      "on-scroll-up":   "shift_up",
+      "on-scroll-down": "shift_down"
+    }
+  },
+
+  "mpris#prev": {
+    "player": "spotify",
+    "format": "󰒮",
+    "format-stopped": "",
+    "on-click": "playerctl --player=spotify previous",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "mpris#info": {
+    "player": "spotify",
+    "format": "󰓇 {artist} – {title}",
+    "format-stopped": "",
+    "tooltip-format": "{album} · {length}",
+    "max-length": 40
+  },
+
+  "mpris#play": {
+    "player": "spotify",
+    "format-playing": "󰏤",
+    "format-paused": "󰐊",
+    "format-stopped": "",
+    "on-click": "playerctl --player=spotify play-pause",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "mpris#next": {
+    "player": "spotify",
+    "format": "󰒭",
+    "format-stopped": "",
+    "on-click": "playerctl --player=spotify next",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "cpu#mono": {
+    "interval": 2,
+    "format": "{icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}{icon8}{icon9}{icon10}{icon11}",
+    "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
+    "tooltip-format": "CPU: {usage}%  load {load1} {load5} {load15}",
+    "on-click": "wezterm start --always-new-process btop"
+  },
+
+  "cpu#color": {
+    "interval": 2,
+    "format": "{icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}{icon8}{icon9}{icon10}{icon11}",
+    "format-icons": [
+      "<span color='#a3be8c'>▁</span>",
+      "<span color='#a3be8c'>▂</span>",
+      "<span color='#a3be8c'>▃</span>",
+      "<span color='#ebcb8b'>▄</span>",
+      "<span color='#ebcb8b'>▅</span>",
+      "<span color='#d08770'>▆</span>",
+      "<span color='#d08770'>▇</span>",
+      "<span color='#bf616a'>█</span>"
+    ],
+    "tooltip-format": "CPU: {usage}%  load {load1} {load5} {load15}",
+    "on-click": "wezterm start --always-new-process btop"
+  },
+
+  "memory": {
+    "interval": 5,
+    "format": "󰘚 {used:0.1f}/{total:0.0f} GiB",
+    "tooltip-format": "RAM: {used:0.1f}/{total:0.0f} GiB ({percentage}%)\nSwap: {swapUsed:0.1f}/{swapTotal:0.0f} GiB ({swapPercentage}%)",
+    "on-click": "wezterm start --always-new-process btop"
+  },
+
+  "custom/disks": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "waybar-disks",
+    "interval": 60,
+    "tooltip": true
+  },
+
+  "pulseaudio": {
+    "format": "{icon} {volume}%",
+    "format-muted": "󰝟 muted",
+    "format-icons": ["󰕿", "󰖀", "󰕾"],
+    "on-click": "ags request toggle audio-panel 1",
+    "on-click-right": "pavucontrol"
+  },
+
+  "custom/spotify-mini": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/spotify-mini.sh",
+    "interval": 5,
+    "on-click": "ags request toggle spotify-popup 1",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "custom/spotify-hybrid": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/spotify-hybrid.sh",
+    "interval": 2,
+    "max-length": 40,
+    "on-click": "ags request toggle spotify-popup 0",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  // playerctl-polling replacements for the built-in mpris buttons,
+  // which crashed waybar via libplayerctl when spotify appeared on D-Bus.
+  "custom/spotify-prev": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/spotify-prev.sh",
+    "interval": 2,
+    "on-click": "playerctl --player=spotify previous",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "custom/spotify-playpause": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/spotify-playpause.sh",
+    "interval": 1,
+    "on-click": "playerctl --player=spotify play-pause",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "custom/spotify-next": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/waybar/scripts/spotify-next.sh",
+    "interval": 2,
+    "on-click": "playerctl --player=spotify next",
+    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+  },
+
+  "network": {
+    "format-wifi": "󰖩 ",
+    "format-ethernet": "󰈀 ",
+    "format-disconnected": "󰖪 ",
+    "tooltip-format": "{ifname}: {ipaddr}"
+  },
+
+  "tray": {
+    "spacing": 8
+  },
+
+  "custom/windows": {
+    "format": "󱂬 {}",
+    "interval": 2,
+    "exec": "hyprctl clients -j | jq length",
+    "tooltip": false,
+    "on-click": "window-picker.sh"
+  },
+
+  "custom/thunderbird": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "waybar-thunderbird",
+    "interval": 5,
+    "on-click": "hyprctl dispatch togglespecialworkspace thundermail"
+  },
+
+  "custom/layout-dp1": {
+    "format": "{}",
+    "exec": "~/.config/hypr/scripts/orient.sh get DP-1",
+    "signal": 8,
+    "interval": "once",
+    "tooltip-format": "Master orientation (Super+W to cycle)",
+    "on-click": "~/.config/hypr/scripts/orient.sh cycle"
+  },
+
+  "custom/keyboard": {
+    "format": "🦆",
+    "interval": "once",
+    "tooltip-format": "Show keyboard layout",
+    "on-click": "qimgv ~/.config/waybar/sofle-all-layers.png"
+  },
+
+  "custom/swaync": {
+    "tooltip": true,
+    "format": "{icon} {text}",
+    "format-icons": {
+      "notification": "󰂞",
+      "none": "󰂚",
+      "dnd-notification": "󰪓",
+      "dnd-none": "󰂛",
+      "inhibited-notification": "󰂞",
+      "inhibited-none": "󰂚",
+      "dnd-inhibited-notification": "󰪓",
+      "dnd-inhibited-none": "󰂛"
+    },
+    "return-type": "json",
+    "exec-if": "which swaync-client",
+    "exec": "swaync-client -swb",
+    "on-click": "swaync-client -t -sw",
+    "on-click-right": "swaync-client -d -sw",
+    "escape": true
+  },
+
+  "custom/layout-hdmi": {
+    "format": "{}",
+    "exec": "~/.config/hypr/scripts/orient.sh get HDMI-A-1",
+    "signal": 8,
+    "interval": "once",
+    "tooltip-format": "Master orientation (Super+W to cycle)",
+    "on-click": "~/.config/hypr/scripts/orient.sh cycle"
+  }
+}

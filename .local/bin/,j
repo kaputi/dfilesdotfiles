@@ -1,0 +1,397 @@
+#!/usr/bin/env bash
+# ,j - jump to a registered directory
+#
+# Prints the chosen absolute path to stdout and nothing else, so a shell
+# wrapper can do `cd "$(,j)"`. The list and prompt go to stderr / the tty.
+# See the `,j` function in ~/.config/zsh/.zshrc for the wrapper.
+#
+# Config: ~/.config/kaputi/jump/dirs, one tagged entry per line
+#   root   PATH   list every immediate subdirectory of PATH
+#   dir    PATH   list PATH itself, nothing under it
+#   ignore PATH   never list PATH, even if a root would pull it in
+# An untagged line is read as a root, for backwards compatibility.
+
+set -uo pipefail
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/kaputi/jump"
+CONFIG_FILE="$CONFIG_DIR/dirs"
+
+# same palette as the claude statusline
+RED=$'\e[38;2;255;92;87m'
+YELLOW=$'\e[38;2;243;249;157m'
+GREY=$'\e[38;5;242m'
+SELBG=$'\e[48;5;238m'
+RESET=$'\e[0m'
+
+warn() { printf ',j: %s\n' "$*" >&2; }
+die() {
+  warn "$*"
+  exit 1
+}
+
+# collapse $HOME to ~ for display
+tilde() {
+  local p=$1
+  if [[ $p == "$HOME" || $p == "$HOME"/* ]]; then
+    p="~${p#"$HOME"}"
+  fi
+  printf '%s' "$p"
+}
+
+canonical() { realpath -- "$1" 2>/dev/null; }
+
+# emit "tag<TAB>path" for every configured entry
+read_entries() {
+  [[ -f $CONFIG_FILE ]] || return 0
+  local line tag path
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line || $line == '#'* ]] && continue
+    tag=${line%% *}
+    path=${line#* }
+    case $tag in
+    root | dir | ignore) ;;
+    *)
+      tag=root
+      path=$line
+      ;;
+    esac
+    [[ -n $path ]] && printf '%s\t%s\n' "$tag" "$path"
+  done <"$CONFIG_FILE"
+}
+
+# drop every entry whose path is $2 and whose tag matches extended regex $1
+drop_entries() {
+  local tag_re=$1 target=$2 tmp tag path
+  [[ -f $CONFIG_FILE ]] || return 0
+  tmp=$(mktemp) || die "cannot create temp file"
+  while IFS=$'\t' read -r tag path; do
+    [[ $tag =~ ^($tag_re)$ && $path == "$target" ]] && continue
+    printf '%s %s\n' "$tag" "$path"
+  done < <(read_entries) >"$tmp"
+  mv -- "$tmp" "$CONFIG_FILE" || die "cannot update $CONFIG_FILE"
+}
+
+has_entry() {
+  local tag_re=$1 target=$2 tag path
+  while IFS=$'\t' read -r tag path; do
+    [[ $tag =~ ^($tag_re)$ && $path == "$target" ]] && return 0
+  done < <(read_entries)
+  return 1
+}
+
+append_entry() {
+  mkdir -p "$CONFIG_DIR" || die "cannot create $CONFIG_DIR"
+  printf '%s %s\n' "$1" "$2" >>"$CONFIG_FILE" || die "cannot write $CONFIG_FILE"
+}
+
+usage() {
+  cat <<'EOF'
+,j - jump to a registered directory
+
+  ,j                    pick a directory by number and cd into it
+  ,j --add [DIR]        register DIR, listing all of its subdirectories
+  ,j --add-one [DIR]    register DIR itself only
+  ,j --rm [DIR]         unregister DIR
+  ,j --ignore [DIR]     hide DIR from the list
+  ,j --unignore [DIR]   stop hiding DIR
+  ,j --list             show everything registered
+  ,j --help             this message
+
+DIR defaults to the current directory. Config lives in:
+  ~/.config/kaputi/jump/dirs
+EOF
+}
+
+# $1 = root|dir, $2 = path
+add_as() {
+  local kind=$1 dir=${2:-$PWD}
+  [[ -d $dir ]] || die "not a directory: $dir"
+  dir=$(canonical "$dir") || die "cannot resolve: $dir"
+
+  if has_entry "$kind" "$dir"; then
+    printf 'already registered as %s: %s\n' "$kind" "$(tilde "$dir")"
+    return 0
+  fi
+
+  # a path is a root or a dir, never both
+  drop_entries 'root|dir' "$dir"
+  append_entry "$kind" "$dir"
+  printf 'registered as %s: %s\n' "$kind" "$(tilde "$dir")"
+}
+
+cmd_rm() {
+  local dir=${1:-$PWD}
+  dir=$(canonical "$dir") || dir=${1:-$PWD}
+  has_entry 'root|dir' "$dir" || die "not registered: $(tilde "$dir")"
+  drop_entries 'root|dir' "$dir"
+  printf 'unregistered: %s\n' "$(tilde "$dir")"
+}
+
+cmd_ignore() {
+  local dir=${1:-$PWD}
+  dir=$(canonical "$dir") || dir=${1:-$PWD}
+  if has_entry ignore "$dir"; then
+    printf 'already ignored: %s\n' "$(tilde "$dir")"
+    return 0
+  fi
+  append_entry ignore "$dir"
+  printf 'ignoring: %s\n' "$(tilde "$dir")"
+}
+
+cmd_unignore() {
+  local dir=${1:-$PWD}
+  dir=$(canonical "$dir") || dir=${1:-$PWD}
+  has_entry ignore "$dir" || die "not ignored: $(tilde "$dir")"
+  drop_entries ignore "$dir"
+  printf 'no longer ignoring: %s\n' "$(tilde "$dir")"
+}
+
+cmd_list() {
+  local tag path found=1
+  local -a roots=() dirs=() ignores=()
+  while IFS=$'\t' read -r tag path; do
+    found=0
+    case $tag in
+    root) roots+=("$path") ;;
+    dir) dirs+=("$path") ;;
+    ignore) ignores+=("$path") ;;
+    esac
+  done < <(read_entries)
+
+  if ((found)); then
+    printf 'nothing registered - add one with: ,j --add ~/some/dir\n'
+    return 0
+  fi
+
+  show() {
+    local label=$1 p
+    shift
+    (($#)) || return 0
+    printf '%s\n' "$label"
+    for p in "$@"; do
+      if [[ -d $p ]]; then
+        printf '  %s\n' "$(tilde "$p")"
+      else
+        printf '  %s  (missing)\n' "$(tilde "$p")"
+      fi
+    done
+  }
+  show 'roots (subdirectories listed):' "${roots[@]}"
+  show 'dirs (listed as-is):' "${dirs[@]}"
+  show 'ignored:' "${ignores[@]}"
+}
+
+cmd_pick() {
+  local tag path
+  local -a candidates=()
+  local -A ignored=() seen=()
+
+  # ignores first, so they can be applied while collecting
+  while IFS=$'\t' read -r tag path; do
+    [[ $tag == ignore ]] && ignored[$path]=1
+  done < <(read_entries)
+
+  local sub
+  while IFS=$'\t' read -r tag path; do
+    case $tag in
+    root)
+      if [[ ! -d $path ]]; then
+        warn "skipping missing root: $(tilde "$path")"
+        continue
+      fi
+      for sub in "$path"/*/; do
+        sub=${sub%/}
+        [[ -d $sub ]] || continue
+        [[ -n ${ignored[$sub]:-} || -n ${seen[$sub]:-} ]] && continue
+        seen[$sub]=1
+        candidates+=("$sub")
+      done
+      ;;
+    dir)
+      if [[ ! -d $path ]]; then
+        warn "skipping missing dir: $(tilde "$path")"
+        continue
+      fi
+      [[ -n ${ignored[$path]:-} || -n ${seen[$path]:-} ]] && continue
+      seen[$path]=1
+      candidates+=("$path")
+      ;;
+    esac
+  done < <(read_entries)
+
+  ((${#candidates[@]})) ||
+    die "nothing to pick from - add something with: ,j --add ~/some/dir"
+
+  local -a sorted=()
+  while IFS= read -r path; do sorted+=("$path"); done \
+    < <(printf '%s\n' "${candidates[@]}" | sort -V)
+
+  # pre-render each row once; git lookups must not repeat on every keystroke
+  local i branch label
+  local -a labels=()
+  for i in "${!sorted[@]}"; do
+    path=${sorted[i]}
+    branch=$(git -C "$path" symbolic-ref --quiet --short HEAD 2>/dev/null ||
+      git -C "$path" rev-parse --short HEAD 2>/dev/null)
+    label="${RED}$(tilde "$path")${RESET}"
+    [[ -n $branch ]] && label+=" ${YELLOW}(${branch})${RESET}"
+    labels+=("$(printf '%s%3d%s  %s' "$GREY" "$((i + 1))" "$RESET" "$label")")
+  done
+
+  # stdout is captured by the caller's $(...), so all UI goes to the tty.
+  # test by actually opening it: -r passes in places where the open fails.
+  local tty=/dev/stdin
+  if { : </dev/tty; } 2>/dev/null; then tty=/dev/tty; fi
+
+  local n=${#sorted[@]} rows
+  rows=$(tput lines 2>/dev/null) || rows=24
+  [[ $rows =~ ^[0-9]+$ ]] || rows=24
+
+  # live filtering redraws in place, which needs the whole list on screen
+  if ((n + 1 > rows)) || [[ ! -t 2 ]]; then
+    static_pick
+    return
+  fi
+
+  # sel is an offset into matches, not into sorted: arrows move it, typing
+  # resets it so the exact/closest match is selected again
+  local query="" first=1 sel=0
+  local -a matches=()
+
+  redraw() {
+    local i idx shown=0
+    # every redraw starts and ends on the prompt line, which is the top of
+    # the block, so the cursor stays where the query is being typed
+    if ((first)); then first=0; else printf '\r' >&2; fi
+    matches=()
+    if [[ -z $query ]]; then
+      for i in "${!sorted[@]}"; do matches+=("$i"); done
+    else
+      # an exact index always sorts above the longer ones it prefixes,
+      # so typing 1 puts 1 on top even though 10, 11, 12 also match
+      for i in "${!sorted[@]}"; do
+        [[ $((i + 1)) == "$query" ]] && matches+=("$i")
+      done
+      for i in "${!sorted[@]}"; do
+        idx=$((i + 1))
+        [[ $idx != "$query" && $idx == "$query"* ]] && matches+=("$i")
+      done
+    fi
+    # keep the cursor inside the (possibly shrunken) match list
+    ((sel < 0)) && sel=0
+    ((${#matches[@]} && sel >= ${#matches[@]})) && sel=$((${#matches[@]} - 1))
+
+    printf '\e[2Kjump> %s\n' "$query" >&2
+    local lbl
+    for i in "${!sorted[@]}"; do
+      if ((shown < ${#matches[@]})); then
+        lbl=${labels[${matches[shown]}]}
+        if ((shown == sel)); then
+          # the row Enter would take. every reset inside the label has to
+          # re-arm the background, or the highlight stops at the first colour
+          # change; the trailing \e[K paints it out to the edge of the screen.
+          printf '\e[2K%s%s%s\e[K%s\n' \
+            "$SELBG" "${lbl//"$RESET"/${RESET}${SELBG}}" "$SELBG" "$RESET" >&2
+        else
+          printf '\e[2K%s\n' "$lbl" >&2
+        fi
+        shown=$((shown + 1))
+      else
+        printf '\e[2K\n' >&2
+      fi
+    done
+    # back up to the prompt and rewrite it, leaving the cursor after the query
+    printf '\e[%dA\r\e[2Kjump> %s' "$((n + 1))" "$query" >&2
+  }
+
+  # erase the whole block so the shell is left clean
+  teardown() { printf '\r\e[J' >&2; }
+
+  choose() {
+    teardown
+    printf '%s\n' "${sorted[$1]}"
+    exit 0
+  }
+
+  trap 'teardown; exit 1' INT TERM
+
+  local key rest seq candidate
+  redraw
+  while true; do
+    IFS= read -rsn1 key <"$tty" || { teardown; exit 1; }
+    case $key in
+    '') # Enter takes the highlighted row
+      ((${#matches[@]})) && choose "${matches[sel]}"
+      ;;
+    $'\x7f' | $'\b')
+      query=${query%?}
+      sel=0
+      ;;
+    [0-9])
+      # only accept a digit that still leaves something matching
+      candidate="$query$key"
+      for i in "${!sorted[@]}"; do
+        if [[ $((i + 1)) == "$candidate"* ]]; then
+          query=$candidate
+          sel=0
+          break
+        fi
+      done
+      ;;
+    $'\e')
+      # a bare Esc quits. otherwise this is a key sequence: read it one byte
+      # at a time up to its terminator, so a partial read can never leave
+      # stray bytes behind to be misread as the next keypress.
+      IFS= read -rsn1 -t 0.2 rest <"$tty"
+      if [[ -z $rest ]]; then
+        teardown
+        exit 1
+      fi
+      if [[ $rest == '[' || $rest == 'O' ]]; then
+        seq=''
+        while IFS= read -rsn1 -t 0.2 rest <"$tty"; do
+          seq+=$rest
+          [[ $rest == [A-Za-z~] ]] && break
+        done
+        case $seq in
+        A) ((sel > 0)) && sel=$((sel - 1)) ;;
+        B) ((sel < ${#matches[@]} - 1)) && sel=$((sel + 1)) ;;
+        esac
+      fi
+      ;;
+    $'\x03' | q) teardown; exit 1 ;;
+    esac
+    redraw
+  done
+}
+
+# non-interactive fallback: print the list, read one number
+static_pick() {
+  local i
+  for i in "${!sorted[@]}"; do
+    printf '%s\n' "${labels[i]}" >&2
+  done
+
+  local reply
+  printf 'jump> ' >&2
+  IFS= read -r reply <"$tty" || exit 1
+
+  [[ -n $reply ]] || exit 1
+  [[ $reply =~ ^[0-9]+$ ]] || die "'$reply' is not a number"
+  ((reply >= 1 && reply <= ${#sorted[@]})) ||
+    die "pick a number between 1 and ${#sorted[@]}"
+
+  printf '%s\n' "${sorted[reply - 1]}"
+}
+
+case "${1-}" in
+"") cmd_pick ;;
+--add | -a) add_as root "${2-}" ;;
+--add-one | -o) add_as dir "${2-}" ;;
+--rm | --remove | -r) cmd_rm "${2-}" ;;
+--ignore | -i) cmd_ignore "${2-}" ;;
+--unignore | -u) cmd_unignore "${2-}" ;;
+--list | -l) cmd_list ;;
+--help | -h) usage ;;
+*) die "unknown option: $1 (try ,j --help)" ;;
+esac

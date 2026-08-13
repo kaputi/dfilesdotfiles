@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/fuzzel-launch-cmd"
+
+if [ -z "$1" ]; then
+    echo "Usage: fuzzel-cache-remove <command>" >&2
+    exit 1
+fi
+
+if ! grep -q "^${1}|" "$cache" 2>/dev/null; then
+    echo "Entry '$1' not found in cache" >&2
+    exit 1
+fi
+
+sed -i "/^${1}|/d" "$cache"
+echo "Removed '$1' from fuzzel cache"

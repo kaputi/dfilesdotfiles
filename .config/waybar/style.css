@@ -1,0 +1,128 @@
+* {
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    font-size: 13px;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: transparent;
+    color: #e0e0e0;
+    border: none;
+}
+
+#workspaces button {
+    padding: 0 4px;
+    background-color: transparent;
+    color: #ffffff;
+}
+
+#workspaces button.empty {
+    background-color: transparent;  /* empty — no tint */
+    color: #777777;
+}
+
+#workspaces button.active,
+#workspaces button.visible {
+    background-color: #333333;
+}
+
+#workspaces button:hover {
+    background: none;
+}
+
+#workspaces button.urgent {
+    animation: blink 1s linear 10;
+}
+
+@keyframes blink {
+    from {
+        background: #eb6f20;
+    }
+    to {
+        background: transparent;
+    }
+}
+
+#clock,
+#pulseaudio,
+#network,
+#battery,
+#cpu,
+#memory,
+#custom-disks,
+#tray,
+#custom-layout-dp1,
+#custom-layout-hdmi,
+#window {
+    padding: 0 10px;
+    color: #e0e0e0;
+}
+
+#window {
+    color: #cccccc;
+    font-style: italic;
+}
+
+#window.empty {
+    padding: 0;
+}
+
+#custom-layout-dp1,
+#custom-layout-hdmi {
+    letter-spacing: -1px;   /* glue the two glyph halves together */
+}
+
+#battery.warning {
+    color: #d0d0d0;
+}
+
+#battery.critical {
+    color: #ffffff;
+}
+
+/* Tighten the four mpris instances so they read as one widget */
+#mpris {
+    padding: 0 4px;
+    color: #e0e0e0;
+}
+
+#mpris.info {
+    padding: 0 6px 0 10px;
+}
+
+#custom-thunderbird {
+    padding: 0 10px;
+    color: #88c0d0;
+}
+
+#custom-thunderbird.stopped {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-spotify-mini,
+#custom-spotify-hybrid {
+    padding: 0 6px;
+    color: #e0e0e0;
+}
+
+#custom-spotify-mini.stopped,
+#custom-spotify-hybrid.stopped {
+    padding: 0;
+}
+
+/* playerctl-based prev/play/next buttons (replace the old mpris ones) */
+#custom-spotify-prev,
+#custom-spotify-playpause,
+#custom-spotify-next {
+    padding: 0 4px;
+    color: #e0e0e0;
+}
+
+#custom-spotify-prev.stopped,
+#custom-spotify-playpause.stopped,
+#custom-spotify-next.stopped {
+    padding: 0;
+}

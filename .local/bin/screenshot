@@ -1,0 +1,18 @@
+#!/bin/sh
+# Wayland-native screenshot: grim (capture) + slurp (region picker) + satty (annotate)
+# Inside satty: draw with the toolbar, Ctrl+S to save+copy, Esc to discard.
+# --copy-command wl-copy makes the (possibly edited) image land on the clipboard automatically.
+
+for cmd in grim slurp satty wl-copy notify-send; do
+  if ! command -v "$cmd" >/dev/null; then
+    echo "$cmd not found" >&2
+    exit 1
+  fi
+done
+
+REGION=$(slurp) || exit 0   # user pressed Esc on the region picker; exit cleanly
+# --disable-notifications: satty's own notification goes through the
+# xdg-desktop-portal, which ignores timeouts and always sticks around in the
+# swaync panel. screenshot-copy-notify fires a transient one instead.
+grim -g "$REGION" - | satty -f - --disable-notifications \
+  --copy-command "$HOME/.local/bin/screenshot-copy-notify"

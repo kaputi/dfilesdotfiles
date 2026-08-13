@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+active=$(hyprctl activewindow -j)
+workspace=$(echo "$active" | jq -r '.workspace.name')
+
+if [[ "$workspace" == "special:stash" ]]; then
+    hyprctl dispatch movetoworkspace e+0
+else
+    hyprctl dispatch movetoworkspacesilent special:stash
+fi

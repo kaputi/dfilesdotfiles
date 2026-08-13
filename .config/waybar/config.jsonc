@@ -1,0 +1,34 @@
+[
+  {
+    "name": "main",
+    "output": "DP-1",
+    "layer": "top",
+    "position": "top",
+    "height": 25,
+    "spacing": 4,
+    "margin-top": 0,
+    "margin-left": 0,
+    "margin-right": 0,
+    "include": ["~/.config/waybar/modules.jsonc"],
+
+    "modules-left":   ["hyprland/workspaces", "custom/windows", "hyprland/window"],
+    "modules-center": ["clock"],
+    "modules-right":  ["custom/spotify-hybrid", "custom/spotify-prev", "custom/spotify-playpause", "custom/spotify-next", "cpu#color", "memory", "custom/disks", "custom/thunderbird", "custom/keyboard", "custom/layout-dp1"]
+  },
+  {
+    "name": "side",
+    "output": "HDMI-A-1",
+    "layer": "top",
+    "position": "top",
+    "height": 25,
+    "spacing": 4,
+    "margin-top": 0,
+    "margin-left": 0,
+    "margin-right": 0,
+    "include": ["~/.config/waybar/modules.jsonc"],
+
+    "modules-left":   ["hyprland/workspaces", "custom/windows", "hyprland/window"],
+    "modules-center": [],
+    "modules-right":  ["clock#time", "custom/spotify-mini", "custom/spotify-prev", "custom/spotify-playpause", "custom/spotify-next", "pulseaudio", "custom/swaync", "tray", "custom/keyboard", "custom/layout-hdmi"]
+  }
+]

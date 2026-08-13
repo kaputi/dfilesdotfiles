@@ -1,0 +1,24 @@
+#!/bin/bash
+export NVIM_APPNAME="tv2"
+
+# exec nvim --listen /tmp/nvim-server.pipe "$@"
+
+# Create unique socket per terminal session
+# exec nvim --listen /tmp/nvim-server-$$.pipe "$@"
+
+exec nvim "$@"
+
+####################################################
+# # If already inside nvim, don't create new socket
+# if [ -n "$NVIM" ]; then
+#   exec nvim "$@"
+# else
+#   # Create socket based on current working directory
+#   SOCKET_NAME=$(echo "$PWD" | md5sum | cut -d' ' -f1)
+#   SOCKET_PATH="/tmp/nvim-${SOCKET_NAME}.pipe"
+
+#   # Export socket path so lazygit can find it
+#   export NVIM_SERVER="$SOCKET_PATH"
+
+#   exec nvim --listen "$SOCKET_PATH" "$@"
+# fi
