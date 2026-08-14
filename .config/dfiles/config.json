@@ -4,6 +4,8 @@
     ".config/hypr",
     ".config/wezterm",
     ".config/waybar",
-    ".local/bin"
+    ".local/bin",
+    ".prettierrc.js",
+    ".claude/statusline-command.sh"
   ]
 }
