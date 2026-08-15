@@ -2,3 +2,4 @@
 # Patterns here are enforced by git itself (core.excludesFile).
 .zcompdump*
 *.log
+.local/bin/claude
