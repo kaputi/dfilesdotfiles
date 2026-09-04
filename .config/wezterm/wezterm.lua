@@ -255,14 +255,30 @@ config.keys = {
   -- bind Q kill-session
 }
 
--- mouse: select-to-copy. Finishing a left-drag selection copies to both the
--- system clipboard and the primary selection (Hyprland middle-click paste still
--- works). Overriding plain Left-Up disables the default link-open-on-click, so
--- Ctrl+click is rebound to open links.
+-- mouse: plain selection is primary-only (middle-click paste). Hold Shift to
+-- copy to the clipboard as well; Shift is also WezTerm's mouse-reporting
+-- bypass, so Shift+drag copies the same way inside nvim/tmux/Claude fullscreen.
+-- Stock defaults on this build copy every selection to the clipboard, hence
+-- the explicit primary-only overrides for plain/double/triple click.
 config.mouse_bindings = {
   {
     event = { Up = { streak = 1, button = 'Left' } },
     mods = 'NONE',
+    action = act.CompleteSelectionOrOpenLinkAtMouseCursor('PrimarySelection'),
+  },
+  {
+    event = { Up = { streak = 2, button = 'Left' } },
+    mods = 'NONE',
+    action = act.CompleteSelection('PrimarySelection'),
+  },
+  {
+    event = { Up = { streak = 3, button = 'Left' } },
+    mods = 'NONE',
+    action = act.CompleteSelection('PrimarySelection'),
+  },
+  {
+    event = { Up = { streak = 1, button = 'Left' } },
+    mods = 'SHIFT',
     action = wezterm.action_callback(function(window, pane)
       window:perform_action(
         act.CompleteSelection('ClipboardAndPrimarySelection'),
@@ -285,11 +301,6 @@ config.mouse_bindings = {
         })
       end
     end),
-  },
-  {
-    event = { Up = { streak = 1, button = 'Left' } },
-    mods = 'CTRL',
-    action = act.OpenLinkAtMouseCursor,
   },
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 icon="󰋊"
-mounts=(/ /home /mnt/arr1 /mnt/arr2 /mnt/backup)
+mounts=(/ /home /mnt/games /mnt/arr1 /mnt/arr2 /mnt/backup)
 
 # KiB -> human readable (e.g. 856G, 1.4T)
 human() {
