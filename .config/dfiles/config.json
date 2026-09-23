@@ -7,5 +7,6 @@
     ".local/bin",
     ".prettierrc.js",
     ".claude/statusline-command.sh"
-  ]
+  ],
+  "diffCommand": "delta --width={{width}}"
 }

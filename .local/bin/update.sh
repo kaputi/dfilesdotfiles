@@ -5,3 +5,4 @@ yay -Syyu
 echo ""
 echo "=== Flatpak ==="
 flatpak update
+flatpak uninstall --unused

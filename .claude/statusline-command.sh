@@ -7,10 +7,12 @@ input=$(/bin/cat)
 
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd')
 model=$(echo "$input" | jq -r '.model.display_name // ""')
+effort=$(echo "$input" | jq -r '.effort.level // empty')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 # cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
 rate_5h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 rate_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+rate_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
 # Shorten home prefix
 # home="$HOME"
@@ -82,6 +84,20 @@ if [[ -n "$rate_5h" ]]; then
   rate_part=" ${grey}usage:${reset}${rate_color}${rate_int}%${reset}${grey} - reset:${reset_str}${reset}"
 fi
 
+# Weekly rate limit badge (no reset time)
+week_part=""
+if [[ -n "$rate_7d" ]]; then
+  week_int=$(printf '%.0f' "$rate_7d")
+  if ((week_int <= 33)); then
+    week_color="$green"
+  elif ((week_int <= 66)); then
+    week_color="$yellow"
+  else
+    week_color="$red"
+  fi
+  week_part=" ${grey}week:${reset}${week_color}${week_int}%${reset}"
+fi
+
 # Project / directory name badge (basename of cwd)
 project_part=""
 if [[ -n "$cwd" ]]; then
@@ -89,10 +105,13 @@ if [[ -n "$cwd" ]]; then
   project_part="${red}${project_name}${reset}"
 fi
 
-# Model badge
+# Model badge (with reasoning effort when the model exposes one)
 model_part=""
 if [[ -n "$model" ]]; then
   model_part="${grey}${model}${reset}"
+  if [[ -n "$effort" ]]; then
+    model_part="${grey}${model}·${effort}${reset}"
+  fi
 fi
 
 # Assemble right side
@@ -101,6 +120,7 @@ right_parts=()
 [[ -n "$ctx_part" ]] && right_parts+=("$ctx_part")
 # [[ -n "$cost_part" ]] && right_parts+=("$cost_part")
 [[ -n "$rate_part" ]] && right_parts+=("$rate_part")
+[[ -n "$week_part" ]] && right_parts+=("$week_part")
 right=""
 for part in "${right_parts[@]}"; do
   right="${right} - ${part}"
