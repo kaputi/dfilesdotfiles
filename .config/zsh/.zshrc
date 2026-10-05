@@ -185,6 +185,7 @@ alias run-station='cd /home/eduardo/code/cmr/estacion/ && yarn start'
 #pretty cat
 alias ccat='/bin/cat'
 alias cat='bat'
+alias catn='bat --style=+numbers'
 
 # exit vim style
 alias :q='exit'

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Find the cheap USB microscope and open it in mpv.
+# Matches by stable /dev/v4l/by-id name, since /dev/videoN numbers shift between plugs.
+
+match='GenesysLogic_Technology_Co.__Ltd._USB2.0_UVC_PC_Camera-video-index0'
+
+dev=$(ls /dev/v4l/by-id/*"$match" 2>/dev/null | head -n1)
+
+if [[ -z $dev ]]; then
+    echo "Microscope not found. Plugged in? Cameras seen:" >&2
+    v4l2-ctl --list-devices 2>/dev/null >&2 || ls /dev/v4l/by-id/ >&2
+    exit 1
+fi
+
+echo "Opening $(readlink -f "$dev")" >&2
+exec mpv --profile=low-latency --untimed --title=microscope "av://v4l2:$dev" "$@"

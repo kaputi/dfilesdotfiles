@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Mount a remote directory over sshfs at a fixed local directory, or unmount it.
+# A remote without a path (user@host) mounts the remote home directory.
+#
+#   ,sshmount user@host[:/path]
+#   ,sshmount -u    unmount
+
+# Full real path (no symlinks): it's matched against /proc/self/mounts.
+target="$HOME/sshfs-mount"
+
+# Print what's mounted on $target, or fail if nothing is.
+# Reads /proc/self/mounts rather than using mountpoint(1), which stats the directory:
+# that fails on a dead connection and would report the mount as gone.
+mounted_source() {
+    awk -v t="$target" '$2 == t { print $1; found = 1 } END { exit !found }' /proc/self/mounts
+}
+
+case $1 in
+    -u)
+        if ! mounted_source >/dev/null; then
+            echo "nothing mounted on $target" >&2
+            exit 1
+        fi
+        if ! fusermount3 -u "$target"; then
+            echo "quit nvim and cd out of $target, or force a lazy unmount: fusermount3 -uz $target" >&2
+            exit 1
+        fi
+        echo "unmounted $target"
+        ;;
+    -* | '')
+        echo "usage: ,sshmount user@host[:/path] | -u" >&2
+        exit 2
+        ;;
+    *)
+        if src=$(mounted_source); then
+            echo "$src is already mounted on $target, run ,sshmount -u first" >&2
+            exit 1
+        fi
+        [[ -d $target ]] || mkdir -p "$target" || exit 1
+        remote=$1
+        [[ $remote == *:* ]] || remote+=":"
+        sshfs "$remote" "$target" -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 || exit 1
+        echo "mounted $remote on $target"
+        ;;
+esac

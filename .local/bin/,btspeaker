@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Let paired phones use this PC as a Bluetooth speaker, only on demand.
+# While off, phones stay paired but blocked, so they can't auto-connect when nearby.
+# The mode lives in $XDG_RUNTIME_DIR, so every reboot starts off.
+#
+#   ,btspeaker on|off|status
+#   ,btspeaker guard    run by btspeaker-guard.service: blocks phones at boot and new pairings while off
+
+state="${XDG_RUNTIME_DIR:-/run/user/$UID}/btspeaker-on"
+
+# Run an action (block, unblock, list) on every paired device that reports itself as a phone.
+each_phone() {
+    local action=$1 mac info name
+    for mac in $(bluetoothctl devices Paired | awk '$1 == "Device" { print $2 }'); do
+        info=$(bluetoothctl info "$mac")
+        [[ $info == *"Icon: phone"* ]] || continue
+        name=$(sed -n 's/^\s*Name: //p' <<<"$info")
+        case $action in
+            block)
+                [[ $info == *"Blocked: yes"* ]] && continue
+                [[ $info == *"Connected: yes"* ]] && bluetoothctl disconnect "$mac" >/dev/null
+                bluetoothctl block "$mac" >/dev/null
+                echo "blocked $name ($mac)"
+                ;;
+            unblock)
+                [[ $info == *"Blocked: no"* ]] && continue
+                bluetoothctl unblock "$mac" >/dev/null
+                echo "unblocked $name ($mac)"
+                ;;
+            list)
+                echo "  $name ($mac) blocked: $(sed -n 's/^\s*Blocked: //p' <<<"$info")"
+                ;;
+        esac
+    done
+}
+
+guard() {
+    # "is owned by" fires when bluetoothd appears, which covers boot and bluetoothd restarts.
+    # "Connected" also catches a phone whose type wasn't known yet when it paired.
+    gdbus monitor --system --dest org.bluez | while IFS= read -r line; do
+        case $line in
+            *"is owned by"* | *"'Paired': <true>"* | *"'Connected': <true>"*)
+                [[ -e $state ]] || each_phone block
+                ;;
+        esac
+    done
+}
+
+case ${1:-status} in
+    on)
+        touch "$state" # before unblocking, so the guard doesn't re-block
+        each_phone unblock
+        echo "btspeaker on: phones can connect"
+        ;;
+    off)
+        rm -f "$state"
+        each_phone block
+        echo "btspeaker off: phones blocked"
+        ;;
+    status)
+        [[ -e $state ]] && echo "btspeaker: on" || echo "btspeaker: off"
+        phones=$(each_phone list)
+        echo "${phones:-  no paired phones}"
+        ;;
+    guard)
+        guard
+        ;;
+    *)
+        echo "usage: ,btspeaker on|off|status" >&2
+        exit 2
+        ;;
+esac
