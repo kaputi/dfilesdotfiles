@@ -6,7 +6,8 @@
     ".config/waybar",
     ".local/bin",
     ".prettierrc.js",
-    ".claude/statusline-command.sh"
+    ".claude/statusline-command.sh",
+    ".var/app/com.orcaslicer.OrcaSlicer/config/OrcaSlicer/user/default"
   ],
   "diffCommand": "delta --width={{width}}"
 }

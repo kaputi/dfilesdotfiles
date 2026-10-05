@@ -1,0 +1,62 @@
+{
+	"deretraction_speed": [
+		"35"
+	],
+	"from": "User",
+	"inherits": "MyKlipper 0.4 nozzle",
+	"layer_change_gcode": ";AFTER_LAYER_CHANGE\n;[layer_z]\nSET_PRINT_STATS_INFO CURRENT_LAYER={layer_num + 1}",
+	"machine_max_acceleration_extruding": [
+		"1500",
+		"20000"
+	],
+	"machine_max_acceleration_x": [
+		"1500",
+		"20000"
+	],
+	"machine_max_acceleration_y": [
+		"1500",
+		"20000"
+	],
+	"machine_max_acceleration_z": [
+		"100",
+		"200"
+	],
+	"machine_max_speed_x": [
+		"150",
+		"200"
+	],
+	"machine_max_speed_y": [
+		"150",
+		"200"
+	],
+	"machine_max_speed_z": [
+		"10",
+		"12"
+	],
+	"machine_start_gcode": "M104 S0\nM140 S0\nPRINT_START BED=[bed_temperature_initial_layer_single] HOTEND=[nozzle_temperature_initial_layer]\nSET_PRINT_STATS_INFO TOTAL_LAYER=[total_layer_count]",
+	"name": "Switchwire 0.4 nozzle",
+	"print_host": "192.168.1.50",
+	"printable_area": [
+		"0x0",
+		"236x0",
+		"236x250",
+		"0x250"
+	],
+	"printable_height": "245",
+	"printer_agent": "moonraker",
+	"printer_extruder_id": [
+		"1"
+	],
+	"printer_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"printer_settings_id": "Switchwire 0.4 nozzle",
+	"retraction_length": [
+		"0.5"
+	],
+	"retraction_speed": [
+		"35"
+	],
+	"support_chamber_temp_control": "0",
+	"version": "2.4.0.1"
+}
