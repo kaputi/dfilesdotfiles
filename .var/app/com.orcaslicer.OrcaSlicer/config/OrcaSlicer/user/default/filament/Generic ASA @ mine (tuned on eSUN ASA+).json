@@ -6,7 +6,7 @@
 		"1"
 	],
 	"fan_max_speed": [
-		"40"
+		"25"
 	],
 	"filament_extruder_variant": [
 		"Direct Drive Standard"
@@ -21,6 +21,9 @@
 		"Generic ASA @ mine (tuned on eSUN ASA+)"
 	],
 	"from": "User",
+	"hot_plate_temp": [
+		"105"
+	],
 	"inherits": "Generic ASA @System",
 	"name": "Generic ASA @ mine (tuned on eSUN ASA+)",
 	"nozzle_temperature": [
@@ -31,6 +34,9 @@
 	],
 	"overhang_fan_speed": [
 		"50"
+	],
+	"textured_plate_temp": [
+		"105"
 	],
 	"version": "2.4.0.3"
 }

@@ -1,6 +1,7 @@
 {
 	"bottom_shell_layers": "5",
 	"brim_type": "outer_only",
+	"brim_width": "8",
 	"from": "User",
 	"inherits": "0.20mm Standard @MyKlipper",
 	"name": "0.20mm Voron @  Mine (0.4)",
