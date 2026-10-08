@@ -26,12 +26,13 @@ blue='\e[1;34m'
 red='\e[1;31m'
 norm='\e[0m'
 
-## trash: `gio trash` (glib2) picks the trash dir, writes the .trashinfo
-## and renames on name clashes, per the freedesktop trash spec.
+## trash: `gio trash` (glib2) when installed: it picks the trash dir, writes the
+## .trashinfo and renames on name clashes. Without gio, builtintrash does the
+## same for the home trash, per the freedesktop trash spec.
 
 usagemessage() {
-	echo -e "This is ${blue}saferm.sh$norm $version. Moves files to the freedesktop trash with gio trash.
-    Files on other drives go to that drive's trash; files that cannot be trashed (e.g. on tmpfs) get an unsafe-delete prompt.
+	echo -e "This is ${blue}saferm.sh$norm $version. Moves files to the freedesktop trash (gio trash if installed, else built in).
+    With gio, files on other drives go to that drive's trash. Files that cannot be trashed (tmpfs, or other drives without gio) get an unsafe-delete prompt.
     Allows unsafe (regular rm) delete. Handles symbolic link deletion.
     Does not complain about different user any more.\n";
 	echo -e "Usage: ${blue}/path/to/saferm.sh$norm [${blue}OPTIONS$norm] [$blue--$norm] ${blue}files and dirs to safely remove$norm"
@@ -66,6 +67,49 @@ setflags() {
   done
 }
 
+# percent-encode a path for the .trashinfo Path= line
+urlencode() {
+  local LC_ALL=C s="$1" out="" c i
+  for (( i = 0; i < ${#s}; i++ )); do
+    c="${s:i:1}"
+    case "$c" in
+      [a-zA-Z0-9/._~-]) out+="$c" ;;
+      *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+    esac
+  done
+  echo "$out"
+}
+
+# home trash per the freedesktop trash spec, for systems without gio
+builtintrash() {
+  local trash="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
+  local name stem ext dir cand info n=1
+  mkdir -p "$trash/files" "$trash/info" || return 1
+  # across filesystems mv would copy instead of rename: let the caller ask
+  if [ "$(stat -c %d -- "$1")" != "$(stat -c %d -- "$trash/files")" ]; then
+    echo "$1 is not on the same filesystem as $trash" >&2
+    return 1
+  fi
+  name=$(basename -- "$1")
+  stem="$name"; ext=""
+  case "$name" in ?*.*) stem="${name%.*}"; ext=".${name##*.}" ;; esac
+  dir=$(CDPATH= cd -- "$(dirname -- "$1")" && pwd) || return 1
+  cand="$name"
+  while :; do
+    info="$trash/info/$cand.trashinfo"
+    if [ ! -e "$trash/files/$cand" ] && [ ! -L "$trash/files/$cand" ]; then
+      # noclobber: claiming the name fails if that .trashinfo already exists
+      if ( set -o noclobber; printf '[Trash Info]\nPath=%s\nDeletionDate=%s\n' \
+          "$(urlencode "$dir/$name")" "$(date +%Y-%m-%dT%H:%M:%S)" > "$info" ) 2>/dev/null; then
+        break
+      fi
+      [ -e "$info" ] || { echo "Cannot write $info" >&2; return 1; }
+    fi
+    n=$((n + 1)); cand="$stem.$n$ext"
+  done
+  mv -- "$1" "$trash/files/$cand" || { rm -f -- "$info"; return 1; }
+}
+
 performdelete() {
   # "delete" = move to trash
   if [ -n "$unsafe" ]; then
@@ -74,22 +118,29 @@ performdelete() {
     rm -rf -- "$1"
   else
     if [ -n "$verbose" ]; then echo -e "Moving $blue$1$norm to ${red}trash$norm"; fi
-    # gio has no "--" and reads "a:b" as a URI, so relative paths need "./"
-    case "$1" in
-      /*) gio trash "$1" ;;
-      *)  gio trash "./$1" ;;
-    esac
+    if command -v gio >/dev/null; then
+      # gio has no "--" and reads "a:b" as a URI, so relative paths need "./"
+      case "$1" in
+        /*) gio trash "$1" ;;
+        *)  gio trash "./$1" ;;
+      esac
+    else
+      builtintrash "$1"
+    fi
   fi
 }
 
 complain() {
   msg=""
+  case "$(basename -- "$1")" in
+    .|..|/) msg="Refusing to remove '.', '..' or '/':"; return ;;
+  esac
   if [ ! -e "$1" -a ! -L "$1" ]; then # does not exist
     msg="File does not exist:"
 	elif [ ! -w "$(dirname -- "$1")" ]; then # can't remove entries from its directory
     msg="Parent directory is not writable:"
-	elif [ ! -f "$1" -a ! -d "$1" -a -z "$force" ]; then # Special or sth else.
-    	msg="Is not a regular file or directory (and -f not specified):"
+	elif [ ! -f "$1" -a ! -d "$1" ]; then # Special or sth else.
+    	if [ -z "$force" ]; then msg="Is not a regular file or directory (and -f not specified):"; fi
 	elif [ -f "$1" ]; then # is a file
     act="true" # operate on files by default
 	elif [ -d "$1" -a -n "$recursive" ]; then # is a directory and recursive is enabled
