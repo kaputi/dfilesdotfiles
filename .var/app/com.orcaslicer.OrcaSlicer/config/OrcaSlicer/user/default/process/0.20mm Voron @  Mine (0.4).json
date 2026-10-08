@@ -1,0 +1,20 @@
+{
+	"bottom_shell_layers": "5",
+	"brim_type": "outer_only",
+	"from": "User",
+	"inherits": "0.20mm Standard @MyKlipper",
+	"name": "0.20mm Voron @  Mine (0.4)",
+	"print_extruder_id": [
+		"1"
+	],
+	"print_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"print_settings_id": "0.20mm Voron @  Mine (0.4)",
+	"skirt_loops": "2",
+	"skirt_speed": "25",
+	"sparse_infill_density": "40%",
+	"top_shell_layers": "5",
+	"version": "2.4.0.1",
+	"wall_loops": "4"
+}

@@ -1,0 +1,36 @@
+{
+	"compatible_printers": [
+		"MyKlipper 0.4 nozzle"
+	],
+	"enable_pressure_advance": [
+		"1"
+	],
+	"fan_max_speed": [
+		"40"
+	],
+	"filament_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"filament_flow_ratio": [
+		"1"
+	],
+	"filament_max_volumetric_speed": [
+		"10"
+	],
+	"filament_settings_id": [
+		"Generic ASA @ mine (tuned on eSUN ASA+)"
+	],
+	"from": "User",
+	"inherits": "Generic ASA @System",
+	"name": "Generic ASA @ mine (tuned on eSUN ASA+)",
+	"nozzle_temperature": [
+		"250"
+	],
+	"nozzle_temperature_initial_layer": [
+		"250"
+	],
+	"overhang_fan_speed": [
+		"50"
+	],
+	"version": "2.4.0.3"
+}

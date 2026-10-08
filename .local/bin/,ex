@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Extract archives into the current directory without spreading files around:
+# an archive with one top-level entry is extracted as is, anything else goes
+# into a folder named after the archive. Archives are always kept.
+
+if [ $# -eq 0 ]; then
+    echo "Usage: ,ex <archive>..." >&2
+    exit 1
+fi
+
+shopt -s nocasematch dotglob nullglob
+
+tmp=""
+trap '[ -n "$tmp" ] && rm -rf -- "$tmp"; exit 130' INT TERM
+
+# sets kind (how to extract) and stem (archive name minus extension) for $1
+identify() {
+    local name="${1##*/}"
+    kind=""; stem="${name%.*}"
+    case "$name" in
+        *.tar.gz|*.tar.bz2|*.tar.xz|*.tar.zst|*.tar.lz|*.tar.lzma|*.tar.Z)
+                     kind=tar; stem="${name%.*.*}" ;;
+        *.tar|*.tgz|*.tbz|*.tbz2|*.txz|*.tzst)
+                     kind=tar ;;
+        *.zip)       kind=zip ;;
+        *.7z)        kind=7z ;;
+        *.rar)       kind=rar ;;
+        *.gz|*.Z)    kind=gzip ;;  # gzip also reads compress(1) .Z files
+        *.bz2)       kind=bzip2 ;;
+        *.xz|*.lzma) kind=xz ;;
+        *.zst)       kind=zstd ;;
+    esac
+}
+
+# extract archive $1 into directory $2; single-file formats write $2/$stem
+extract() {
+    case "$kind" in
+        tar)   tar -xf "$1" -C "$2" ;;  # GNU tar detects the compression itself
+        zip)   unzip -q "$1" -d "$2" ;;
+        7z)    7z x -bso0 -bsp0 -o"$2" "$1" ;;
+        rar)   unrar x -idq "$1" "$2/" ;;
+        gzip)  gzip -dc "$1" > "$2/$stem" ;;
+        bzip2) bzip2 -dc "$1" > "$2/$stem" ;;
+        xz)    xz -dc "$1" > "$2/$stem" ;;
+        zstd)  zstd -dcq "$1" > "$2/$stem" ;;
+    esac
+}
+
+# first free name for $1 in the current dir: name, name-2, name-3...
+# if $2 is a regular file the extension stays last (notes-2.txt)
+freename() {
+    local base="$1" ext="" cand="$1" n=2
+    if [ -f "$2" ] && [[ $1 == ?*.* ]]; then base="${1%.*}"; ext=".${1##*.}"; fi
+    while [ -e "$cand" ] || [ -L "$cand" ]; do
+        cand="$base-$n$ext"; n=$((n + 1))
+    done
+    echo "$cand"
+}
+
+status=0
+for arg in "$@"; do
+    # a leading "-" would be read as an option by the extractors
+    f="$arg"; [[ $f == -* ]] && f="./$f"
+    if [ ! -f "$f" ]; then
+        echo "'$arg' is not a valid file" >&2; status=1; continue
+    fi
+    identify "$f"
+    if [ -z "$kind" ]; then
+        echo "'$arg' cannot be extracted via ,ex" >&2; status=1; continue
+    fi
+    tmp=$(mktemp -d ./.ex-XXXXXX) || { status=1; continue; }
+    if ! extract "$f" "$tmp"; then
+        echo "'$arg' failed to extract" >&2
+        rm -rf -- "$tmp"; tmp=""; status=1; continue
+    fi
+    entries=("$tmp"/*)
+    if [ ${#entries[@]} -eq 0 ]; then
+        echo "'$arg' is empty" >&2
+        rmdir -- "$tmp"
+    elif [ ${#entries[@]} -eq 1 ]; then
+        # one top-level entry: take it out as is
+        dest=$(freename "${entries[0]##*/}" "${entries[0]}")
+        if mv -- "${entries[0]}" "$dest"; then
+            rmdir -- "$tmp"; echo "$arg -> $dest"
+        else
+            echo "'$arg' extracted, but left in $tmp" >&2; status=1
+        fi
+    else
+        dest=$(freename "$stem" "$tmp")
+        if mv -- "$tmp" "$dest"; then
+            echo "$arg -> $dest/"
+        else
+            echo "'$arg' extracted, but left in $tmp" >&2; status=1
+        fi
+    fi
+    tmp=""
+done
+exit $status

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Play a notification sound on this PC, optionally followed by a spoken message.
+# Made for Claude Code sessions (see ~/.claude/CLAUDE.md); works from any shell.
+#
+#   ,sound [--info|--done|--alert] [message...]
+#     --info    short chime (default)
+#     --done    "complete" chime, for finished jobs
+#     --alert   alarm, played twice, for faults that need attention now
+#     message   spoken with espeak-ng after the chime
+#
+# Never fails the caller: a missing player, sound file or audio session is skipped.
+
+dir=/usr/share/sounds/freedesktop/stereo
+kind=info
+case ${1:-} in
+    --info|--done|--alert) kind=${1#--}; shift ;;
+    -h|--help) sed -n '2,11s/^# \{0,1\}//p' "$0"; exit 0 ;;
+esac
+
+case $kind in
+    info)  sound=$dir/message-new-instant.oga; times=1 ;;
+    done)  sound=$dir/complete.oga;            times=1 ;;
+    alert) sound=$dir/alarm-clock-elapsed.oga; times=2 ;;
+esac
+
+play() { pw-play "$1" 2>/dev/null || paplay "$1" 2>/dev/null; }
+
+if [ -r "$sound" ]; then
+    for ((i = 0; i < times; i++)); do play "$sound"; done
+fi
+if [ $# -gt 0 ] && command -v espeak-ng >/dev/null; then
+    espeak-ng -v en-gb -s 150 "$*" 2>/dev/null
+fi
+exit 0

@@ -34,7 +34,13 @@
 		"12"
 	],
 	"machine_start_gcode": "M104 S0\nM140 S0\nPRINT_START BED=[bed_temperature_initial_layer_single] HOTEND=[nozzle_temperature_initial_layer]\nSET_PRINT_STATS_INFO TOTAL_LAYER=[total_layer_count]",
-	"name": "Switchwire 0.4 nozzle",
+	"max_layer_height": [
+		"0.45"
+	],
+	"name": "Switchwire 0.6 nozzle",
+	"nozzle_diameter": [
+		"0.6"
+	],
 	"print_host": "192.168.1.50",
 	"printable_area": [
 		"0x0",
@@ -50,7 +56,7 @@
 	"printer_extruder_variant": [
 		"Direct Drive Standard"
 	],
-	"printer_settings_id": "Switchwire 0.4 nozzle",
+	"printer_settings_id": "Switchwire 0.6 nozzle",
 	"retraction_length": [
 		"0.5"
 	],
