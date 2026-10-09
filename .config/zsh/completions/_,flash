@@ -1,0 +1,36 @@
+#compdef ,flash
+# ,flash takes key=value arguments: complete the keys, then image files after
+# src= and whole USB drives after dst= (the same drives ,flash accepts).
+
+local -a keys drives f
+local w line
+
+case $PREFIX in
+    src=*)
+        compset -P 'src='
+        _files -g '*.(iso|img|xz|gz|bz2|zst|lz4|zip)(-.)'
+        ;;
+    dst=*)
+        compset -P 'dst='
+        for line in ${(f)"$(lsblk -dpn -Q 'HOTPLUG == 1 && TYPE == "disk"' -o NAME,SIZE,MODEL 2>/dev/null)"}; do
+            f=(${=line})
+            drives+=("$f[1]:${f[2,-1]}")
+        done
+        _describe -t drives 'USB drive' drives
+        ;;
+    md5=*)
+        return 1
+        ;;
+    *)
+        keys=(
+            'src=:image to write'
+            'dst=:USB drive to erase'
+            'md5=:md5 of the image file'
+        )
+        # drop keys already on the line
+        for w in $words[2,CURRENT-1] $words[CURRENT+1,-1]; do
+            keys=(${keys:#${w%%=*}=:*})
+        done
+        _describe -t keys 'argument' keys -S ''
+        ;;
+esac
