@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Write a disk image to a whole drive: a bootable USB stick, an SD card for a Pi...
+#
+#   ,flash src=<image> dst=<drive> [md5=<hash>]
+#     src   .iso/.img, raw or compressed: xz, gzip, bzip2, zstd, lz4, zip with one file
+#     dst   whole drive, e.g. /dev/sdb (not /dev/sdb1); everything on it is erased
+#     md5   md5 of the src file as downloaded; checked before writing
+#
+# Refuses: images without an MBR/GPT boot signature (non-hybrid ISOs, such as
+# Windows ones, don't boot when dd'ed), images bigger than the drive (size known
+# for raw and xz only), drives mounted anywhere but /run/media or /media.
+# Shows the drive and asks for "yes" first. Uses sudo only for umount and dd.
+
+set -u
+
+usage="usage: ,flash src=<image> dst=<drive> [md5=<hash>]"
+die() { printf ',flash: %s\n' "$*" >&2; exit 1; }
+
+src= dst= md5=
+for arg; do
+    case $arg in
+        -h|--help) sed -n '2,12s/^# \{0,1\}//p' "$0"; exit 0 ;;
+        src=*) src=${arg#src=} ;;
+        dst=*) dst=${arg#dst=} ;;
+        md5=*) md5=${arg#md5=} ;;
+        *) die "unknown argument: $arg ($usage)" ;;
+    esac
+done
+[[ -n $src && -n $dst ]] || die "$usage"
+# zsh doesn't expand ~ after src=
+[[ $src == "~/"* ]] && src=$HOME/${src#"~/"}
+[[ -f $src && -r $src ]] || die "src not found: $src"
+
+# Drive: whole disk, mounted only by the desktop's automounter (if at all)
+[[ -b $dst ]] || die "not a block device: $dst"
+[[ $(lsblk -dno TYPE "$dst") == disk ]] || die "$dst is not a whole drive (use e.g. /dev/sdb, not /dev/sdb1)"
+mounts=()
+while read -r mnt; do
+    case $mnt in
+        '') ;;
+        /run/media/*|/media/*) mounts+=("$mnt") ;;
+        *) die "$dst is mounted at $mnt, refusing" ;;
+    esac
+done < <(lsblk -nlo MOUNTPOINTS "$dst")
+drive_size=$(lsblk -dnbo SIZE "$dst")
+
+# Image: pick the unpacker from the content, not the extension
+case $(file -b --mime-type "$src") in
+    application/x-xz)    unpack=(xz -dc) ;;
+    application/gzip)    unpack=(gzip -dc) ;;
+    application/x-bzip2) unpack=(bzip2 -dc) ;;
+    application/zstd)    unpack=(zstd -dcq) ;;
+    application/x-lz4)   unpack=(lz4 -dcq) ;;
+    application/zip)
+        n=$(unzip -Z1 "$src" | grep -vc '/$')
+        (( n == 1 )) || die "zip must hold exactly one file, $src has $n"
+        unpack=(unzip -p) ;;
+    *)                   unpack=(cat) ;;
+esac
+
+case ${unpack[0]} in
+    cat) img_size=$(stat -c %s "$src") ;;
+    xz)  info=$(xz --robot --list "$src" 2>/dev/null) || die "can't read $src: damaged or incomplete download?"
+         img_size=$(awk -F'\t' '$1 == "totals" {print $5}' <<< "$info") ;;
+    *)   img_size= ;;
+esac
+if [[ -n $img_size ]] && (( img_size > drive_size )); then
+    die "image ($(numfmt --to=iec "$img_size")) is bigger than $dst ($(numfmt --to=iec "$drive_size"))"
+fi
+
+head=$(mktemp) || exit 1
+trap 'rm -f "$head"' EXIT
+"${unpack[@]}" "$src" 2>/dev/null | head -c 1M > "$head"
+desc=$(file -b "$head")
+[[ $(od -An -tx1 -j510 -N2 "$head" | tr -d ' \n') == 55aa ]] \
+    || die "no boot signature: dd would not make a bootable drive from this ($desc)"
+
+if [[ -n $md5 ]]; then
+    echo "Checking md5..."
+    sum=$(md5sum < "$src"); sum=${sum%% *}
+    [[ ${sum,,} == "${md5,,}" ]] || die "md5 mismatch: expected $md5, got $sum"
+    echo "md5 OK"
+fi
+
+echo
+lsblk -o NAME,MODEL,SIZE,TRAN,MOUNTPOINTS "$dst"
+printf '\nImage: %s\n       %s\n\n' "$src" "$desc"
+read -rp "Erase everything on $dst and write the image? Type yes: " answer
+[[ ${answer:-} == yes ]] || die "cancelled, nothing written"
+
+sudo -v || die "sudo failed, nothing written"
+if (( ${#mounts[@]} )); then
+    sudo umount "${mounts[@]}" || die "could not unmount ${mounts[*]}, nothing written"
+fi
+"${unpack[@]}" "$src" | sudo dd of="$dst" bs=4M iflag=fullblock status=progress conv=fsync
+st=("${PIPESTATUS[@]}")
+(( st[0] == 0 )) || die "unpacking $src failed: $dst is only partly written"
+(( st[1] == 0 )) || die "dd failed: $dst is only partly written"
+echo "Done: $dst can be removed."
