@@ -8,7 +8,8 @@
 #
 # Refuses: images without an MBR/GPT boot signature (non-hybrid ISOs, such as
 # Windows ones, don't boot when dd'ed), images bigger than the drive (size known
-# for raw and xz only), drives mounted anywhere but /run/media or /media.
+# for raw and xz only), internal (non-hotplug) drives, drives mounted anywhere
+# but /run/media or /media.
 # Shows the drive and asks for "yes" first. Uses sudo only for umount and dd.
 
 set -u
@@ -34,6 +35,7 @@ done
 # Drive: whole disk, mounted only by the desktop's automounter (if at all)
 [[ -b $dst ]] || die "not a block device: $dst"
 [[ $(lsblk -dno TYPE "$dst") == disk ]] || die "$dst is not a whole drive (use e.g. /dev/sdb, not /dev/sdb1)"
+[[ $(lsblk -dno HOTPLUG "$dst") == 1 ]] || die "$dst is an internal drive (not USB), refusing"
 mounts=()
 while read -r mnt; do
     case $mnt in
