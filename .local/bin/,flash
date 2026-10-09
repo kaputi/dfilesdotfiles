@@ -94,7 +94,8 @@ sudo -v || die "sudo failed, nothing written"
 if (( ${#mounts[@]} )); then
     sudo umount "${mounts[@]}" || die "could not unmount ${mounts[*]}, nothing written"
 fi
-"${unpack[@]}" "$src" | sudo dd of="$dst" bs=4M iflag=fullblock status=progress conv=fsync
+# oflag=direct: progress counts what reached the drive, not what sits in RAM
+"${unpack[@]}" "$src" | sudo dd of="$dst" bs=4M iflag=fullblock oflag=direct status=progress conv=fsync
 st=("${PIPESTATUS[@]}")
 (( st[0] == 0 )) || die "unpacking $src failed: $dst is only partly written"
 (( st[1] == 0 )) || die "dd failed: $dst is only partly written"
