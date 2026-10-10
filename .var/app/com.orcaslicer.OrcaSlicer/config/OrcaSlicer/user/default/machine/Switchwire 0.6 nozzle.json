@@ -6,15 +6,19 @@
 	"inherits": "MyKlipper 0.4 nozzle",
 	"layer_change_gcode": ";AFTER_LAYER_CHANGE\n;[layer_z]\nSET_PRINT_STATS_INFO CURRENT_LAYER={layer_num + 1}",
 	"machine_max_acceleration_extruding": [
-		"1500",
+		"3500",
+		"20000"
+	],
+	"machine_max_acceleration_travel": [
+		"3500",
 		"20000"
 	],
 	"machine_max_acceleration_x": [
-		"1500",
+		"3500",
 		"20000"
 	],
 	"machine_max_acceleration_y": [
-		"1500",
+		"3500",
 		"20000"
 	],
 	"machine_max_acceleration_z": [
@@ -45,8 +49,8 @@
 	"printable_area": [
 		"0x0",
 		"221x0",
-		"221x250",
-		"0x250"
+		"221x249",
+		"0x249"
 	],
 	"printable_height": "235",
 	"printer_agent": "moonraker",
