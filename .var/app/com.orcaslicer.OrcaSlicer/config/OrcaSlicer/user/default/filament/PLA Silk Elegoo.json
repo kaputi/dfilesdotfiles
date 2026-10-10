@@ -1,0 +1,15 @@
+{
+	"compatible_printers": [
+		"MyKlipper 0.4 nozzle"
+	],
+	"filament_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"filament_settings_id": [
+		"PLA Silk Elegoo"
+	],
+	"from": "User",
+	"inherits": "Generic PLA Silk @System",
+	"name": "PLA Silk Elegoo",
+	"version": "2.4.0.3"
+}
