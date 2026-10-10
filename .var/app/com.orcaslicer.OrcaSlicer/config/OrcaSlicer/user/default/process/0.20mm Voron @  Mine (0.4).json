@@ -1,10 +1,16 @@
 {
 	"bottom_shell_layers": "5",
+	"bridge_acceleration": "1000",
 	"brim_type": "outer_only",
 	"brim_width": "8",
+	"default_acceleration": "3000",
 	"from": "User",
 	"inherits": "0.20mm Standard @MyKlipper",
+	"initial_layer_acceleration": "500",
+	"inner_wall_acceleration": "3000",
+	"internal_solid_infill_acceleration": "3000",
 	"name": "0.20mm Voron @  Mine (0.4)",
+	"outer_wall_acceleration": "2000",
 	"print_extruder_id": [
 		"1"
 	],
@@ -14,8 +20,11 @@
 	"print_settings_id": "0.20mm Voron @  Mine (0.4)",
 	"skirt_loops": "2",
 	"skirt_speed": "25",
+	"sparse_infill_acceleration": "3500",
 	"sparse_infill_density": "40%",
 	"top_shell_layers": "5",
+	"top_surface_acceleration": "2000",
+	"travel_acceleration": "3500",
 	"version": "2.4.0.1",
 	"wall_loops": "4"
 }
