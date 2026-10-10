@@ -2,6 +2,7 @@
 # Extract archives into the current directory without spreading files around:
 # an archive with one top-level entry is extracted as is, anything else goes
 # into a folder named after the archive. Archives are always kept.
+# On a terminal it shows progress: 7z and unrar draw their own, pv the rest.
 
 if [ $# -eq 0 ]; then
     echo "Usage: ,ex <archive>..." >&2
@@ -9,14 +10,29 @@ if [ $# -eq 0 ]; then
 fi
 
 shopt -s nocasematch dotglob nullglob
+set -o pipefail
 
 tmp=""
 trap '[ -n "$tmp" ] && rm -rf -- "$tmp"; exit 130' INT TERM
 
-# sets kind (how to extract) and stem (archive name minus extension) for $1
+bar=false; [ -t 2 ] && bar=true
+have_pv=false; command -v pv >/dev/null && have_pv=true
+pv_warned=false
+sz_progress=0; rar_msgs=q  # 7z -bsp and unrar -id values
+if $bar; then sz_progress=2; rar_msgs=cdn; fi
+
+# sets kind (how to extract), comp (decompressor for tar and raw) and stem
+# (archive name minus extension) for $1
 identify() {
     local name="${1##*/}"
-    kind=""; stem="${name%.*}"
+    kind=""; comp=""; stem="${name%.*}"
+    case "$name" in
+        *.gz|*.tgz|*.Z)     comp=gzip ;;  # gzip also reads compress(1) .Z files
+        *.bz2|*.tbz|*.tbz2) comp=bzip2 ;;
+        *.xz|*.txz|*.lzma)  comp=xz ;;    # xz also reads .lzma
+        *.zst|*.tzst)       comp=zstd ;;
+        *.lz)               comp=lzip ;;
+    esac
     case "$name" in
         *.tar.gz|*.tar.bz2|*.tar.xz|*.tar.zst|*.tar.lz|*.tar.lzma|*.tar.Z)
                      kind=tar; stem="${name%.*.*}" ;;
@@ -25,24 +41,50 @@ identify() {
         *.zip)       kind=zip ;;
         *.7z)        kind=7z ;;
         *.rar)       kind=rar ;;
-        *.gz|*.Z)    kind=gzip ;;  # gzip also reads compress(1) .Z files
-        *.bz2)       kind=bzip2 ;;
-        *.xz|*.lzma) kind=xz ;;
-        *.zst)       kind=zstd ;;
+        *.gz|*.Z|*.bz2|*.xz|*.lzma|*.zst)
+                     kind=raw ;;  # a single compressed file
     esac
 }
 
-# extract archive $1 into directory $2; single-file formats write $2/$stem
+# commands needed to extract $kind
+tools() {
+    case "$kind" in
+        tar) echo tar $comp ;;
+        raw) echo $comp ;;
+        zip) echo unzip ;;
+        7z)  echo 7z ;;
+        rar) echo unrar ;;
+    esac
+}
+
+# write archive $1 to stdout, through a pv progress bar when $pv
+feed() {
+    if $pv; then pv -N "${1##*/}" "$1"; else cat "$1"; fi
+}
+
+# extract archive $1 into directory $2; raw writes $2/$stem
 extract() {
     case "$kind" in
-        tar)   tar -xf "$1" -C "$2" ;;  # GNU tar detects the compression itself
-        zip)   unzip -q "$1" -d "$2" ;;
-        7z)    7z x -bso0 -bsp0 -o"$2" "$1" ;;
-        rar)   unrar x -idq "$1" "$2/" ;;
-        gzip)  gzip -dc "$1" > "$2/$stem" ;;
-        bzip2) bzip2 -dc "$1" > "$2/$stem" ;;
-        xz)    xz -dc "$1" > "$2/$stem" ;;
-        zstd)  zstd -dcq "$1" > "$2/$stem" ;;
+        tar) feed "$1" | tar -xf - ${comp:+-I "$comp"} -C "$2" ;;
+        raw) feed "$1" | "$comp" -dcq > "$2/$stem" ;;
+        zip)
+            if $pv; then
+                # unzip prints one line per finished entry and pv counts them;
+                # header and symlink notes are dropped, anything else is a
+                # warning or error and goes to stderr
+                local n; n=$(unzip -Z1 "$1" 2>/dev/null | wc -l)
+                unzip "$1" -d "$2" | awk '
+                    /^ +(creating|inflating|extracting|linking): / { print; fflush(); next }
+                    /^Archive: / { next }
+                    /^finishing deferred symbolic links:$/ { links = 1; next }
+                    links && / -> / { next }
+                    { print > "/dev/stderr" }' |
+                    pv -l -s "$n" -N "${1##*/}" >/dev/null
+            else
+                unzip -q "$1" -d "$2"
+            fi ;;
+        7z)  7z x -bso0 -bsp"$sz_progress" -o"$2" "$1" ;;
+        rar) unrar x -id"$rar_msgs" "$1" "$2/" ;;
     esac
 }
 
@@ -67,6 +109,23 @@ for arg in "$@"; do
     identify "$f"
     if [ -z "$kind" ]; then
         echo "'$arg' cannot be extracted via ,ex" >&2; status=1; continue
+    fi
+    missing=()
+    for t in $(tools); do command -v "$t" >/dev/null || missing+=("$t"); done
+    if [ ${#missing[@]} -gt 0 ]; then
+        # the 7z command comes in the 7zip package
+        echo "'$arg' skipped: ${missing[*]} not installed, install it first:" \
+             "sudo pacman -S ${missing[*]/#7z/7zip}" >&2
+        status=1; continue
+    fi
+    pv=false
+    if $bar && [ "$kind" != 7z ] && [ "$kind" != rar ]; then
+        if $have_pv; then
+            pv=true
+        elif ! $pv_warned; then
+            echo "pv not installed, extracting without progress (sudo pacman -S pv)" >&2
+            pv_warned=true
+        fi
     fi
     tmp=$(mktemp -d ./.ex-XXXXXX) || { status=1; continue; }
     if ! extract "$f" "$tmp"; then
