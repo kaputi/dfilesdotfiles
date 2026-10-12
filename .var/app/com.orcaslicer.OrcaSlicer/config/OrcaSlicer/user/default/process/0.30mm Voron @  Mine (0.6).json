@@ -28,7 +28,7 @@
 		"Direct Drive Standard"
 	],
 	"print_settings_id": "0.30mm Voron @  Mine (0.6)",
-	"skirt_loops": "2",
+	"skirt_loops": "0",
 	"skirt_speed": "25",
 	"sparse_infill_acceleration": "3500",
 	"sparse_infill_density": "40%",
