@@ -5,6 +5,9 @@
 	"filament_extruder_variant": [
 		"Direct Drive Standard"
 	],
+	"filament_max_volumetric_speed": [
+		"20"
+	],
 	"filament_settings_id": [
 		"PLA Silk Elegoo"
 	],
