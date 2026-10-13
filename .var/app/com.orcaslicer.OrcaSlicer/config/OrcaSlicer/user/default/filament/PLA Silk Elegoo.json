@@ -1,0 +1,36 @@
+{
+	"compatible_printers": [
+		"MyKlipper 0.4 nozzle"
+	],
+	"enable_pressure_advance": [
+		"1"
+	],
+	"filament_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"filament_flow_ratio": [
+		"0.94"
+	],
+	"filament_max_volumetric_speed": [
+		"20"
+	],
+	"filament_retraction_length": [
+		"0.5"
+	],
+	"filament_settings_id": [
+		"PLA Silk Elegoo"
+	],
+	"from": "User",
+	"inherits": "Generic PLA Silk @System",
+	"name": "PLA Silk Elegoo",
+	"nozzle_temperature": [
+		"220"
+	],
+	"nozzle_temperature_initial_layer": [
+		"220"
+	],
+	"pressure_advance": [
+		"0.045"
+	],
+	"version": "2.4.0.3"
+}
