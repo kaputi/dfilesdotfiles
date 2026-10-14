@@ -2,6 +2,9 @@
 	"compatible_printers": [
 		"MyKlipper 0.4 nozzle"
 	],
+	"default_filament_colour": [
+		"#613583"
+	],
 	"enable_pressure_advance": [
 		"1"
 	],
@@ -14,21 +17,12 @@
 	"filament_max_volumetric_speed": [
 		"20"
 	],
-	"filament_retraction_length": [
-		"0.5"
-	],
 	"filament_settings_id": [
-		"PLA Silk Elegoo"
+		"PLA Silk Elegoo (purple)"
 	],
 	"from": "User",
 	"inherits": "Generic PLA Silk @System",
-	"name": "PLA Silk Elegoo",
-	"nozzle_temperature": [
-		"220"
-	],
-	"nozzle_temperature_initial_layer": [
-		"220"
-	],
+	"name": "PLA Silk Elegoo (purple)",
 	"pressure_advance": [
 		"0.045"
 	],
