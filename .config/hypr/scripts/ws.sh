@@ -35,14 +35,14 @@ case "$action" in
     for sw in $visible; do
       case "$sw" in
         special:stash|special:thundermail)
-          hyprctl dispatch togglespecialworkspace "${sw#special:}" >/dev/null ;;
+          hyprctl dispatch "hl.dsp.workspace.toggle_special(\"${sw#special:}\")" >/dev/null ;;
       esac
     done
-    hyprctl dispatch workspace "$id" ;;
+    hyprctl dispatch "hl.dsp.focus({ workspace = \"$id\" })" ;;
   move)
-    hyprctl dispatch movetoworkspacesilent "$id"
+    hyprctl dispatch "hl.dsp.window.move({ workspace = \"$id\", follow = false })"
     # To follow the window to its new workspace, use this instead:
-    # hyprctl dispatch movetoworkspace "$id"
+    # hyprctl dispatch "hl.dsp.window.move({ workspace = \"$id\" })"
     ;;
   *)      echo "ws.sh: unknown action '$action' (use: switch | move)" >&2; exit 1 ;;
 esac

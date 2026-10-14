@@ -12,16 +12,16 @@
 # Global layout state lives in $XDG_RUNTIME_DIR/hypr-orient/_layout.
 #
 # Note on flicker (dwindle→master restoration):
-# `layoutmsg orientationX` only operates on the focused workspace, so restoring
+# `hl.dsp.layout("orientationX")` only operates on the focused workspace, so restoring
 # per-WS state requires briefly visiting each workspace whose stored value
 # differs from its default. To eliminate the flicker:
 #   - drop restoration: comment out the loop in restore_master_state, and on
-#     dwindle→master Hyprland will reapply each WS's `layoutopt:orientation`
-#     rule from hyprland.conf (DP-1 ws 1..9 = left, HDMI-A-1 ws 11..19 = top).
+#     dwindle→master Hyprland will reapply each WS's `layout_opts.orientation`
+#     rule from hyprland.lua (DP-1 ws 1..9 = left, HDMI-A-1 ws 11..19 = top).
 #   - or restore only the focused monitor's focused WS (single dispatch, no
 #     focus change).
 #   - or switch to the hy3 plugin which keeps per-workspace layout state
-#     across general:layout changes.
+#     across general.layout changes.
 
 set -euo pipefail
 
@@ -45,7 +45,7 @@ focused_monitor() {
 }
 
 # Default orientation when no per-WS state exists — matches workspace rules in
-# hyprland.conf (ws 1..9 = left, ws 11..19 = top).
+# hyprland.lua (ws 1..9 = left, ws 11..19 = top).
 default_for() {
     local ws=$1
     if (( ws >= 11 && ws <= 19 )); then echo top; else echo left; fi
@@ -68,7 +68,7 @@ set_orient_focused() {
     # Master-mode only: dispatch orientation on focused WS, persist its state.
     local o=$1 ws
     ws=$(active_ws_global)
-    hyprctl dispatch layoutmsg "orientation${o}" >/dev/null
+    hyprctl dispatch "hl.dsp.layout(\"orientation${o}\")" >/dev/null
     echo "$o" > "$STATE_DIR/$ws"
     signal_waybar
 }
@@ -87,24 +87,24 @@ restore_master_state() {
         stored=$(cat "$STATE_DIR/$ws")
         default=$(default_for "$ws")
         [[ $stored == "$default" ]] && continue
-        hyprctl dispatch workspace "$ws" >/dev/null
-        hyprctl dispatch layoutmsg "orientation${stored}" >/dev/null
+        hyprctl dispatch "hl.dsp.focus({ workspace = \"$ws\" })" >/dev/null
+        hyprctl dispatch "hl.dsp.layout(\"orientation${stored}\")" >/dev/null
     done
 
     # Restore focus.
-    hyprctl dispatch workspace "$original_ws" >/dev/null
-    hyprctl dispatch focusmonitor "$original_mon" >/dev/null
+    hyprctl dispatch "hl.dsp.focus({ workspace = \"$original_ws\" })" >/dev/null
+    hyprctl dispatch "hl.dsp.focus({ monitor = \"$original_mon\" })" >/dev/null
 }
 
 set_master() {
-    hyprctl keyword general:layout master >/dev/null
+    hyprctl eval 'hl.config({ general = { layout = "master" } })' >/dev/null
     echo master > "$GLOBAL_FILE"
     restore_master_state
     signal_waybar
 }
 
 set_dwindle() {
-    hyprctl keyword general:layout dwindle >/dev/null
+    hyprctl eval 'hl.config({ general = { layout = "dwindle" } })' >/dev/null
     echo dwindle > "$GLOBAL_FILE"
     signal_waybar
 }

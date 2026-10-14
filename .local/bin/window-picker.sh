@@ -26,7 +26,7 @@ selected=$(
 for row in "${rows[@]}"; do
   IFS=$'\t' read -r addr display _icon <<<"$row"
   if [ "$display" = "$selected" ]; then
-    hyprctl dispatch focuswindow "address:$addr"
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })"
     exit 0
   fi
 done

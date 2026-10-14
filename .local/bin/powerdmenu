@@ -11,7 +11,7 @@ choice=$(printf '%s\n' \
 
 case "$choice" in
   Lock)     hyprlock ;;
-  Logout)   hyprctl dispatch exit ;;
+  Logout)   hyprctl dispatch 'hl.dsp.exit()' ;;
   Restart)  systemctl reboot ;;
   Shutdown) systemctl poweroff ;;
   "")       exit 0 ;;   # user pressed Esc

@@ -64,7 +64,7 @@
     "format": "󰒮",
     "format-stopped": "",
     "on-click": "playerctl --player=spotify previous",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "mpris#info": {
@@ -81,7 +81,7 @@
     "format-paused": "󰐊",
     "format-stopped": "",
     "on-click": "playerctl --player=spotify play-pause",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "mpris#next": {
@@ -89,7 +89,7 @@
     "format": "󰒭",
     "format-stopped": "",
     "on-click": "playerctl --player=spotify next",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "cpu#mono": {
@@ -146,7 +146,7 @@
     "exec": "~/.config/waybar/scripts/spotify-mini.sh",
     "interval": 5,
     "on-click": "ags request toggle spotify-popup 1",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "custom/spotify-hybrid": {
@@ -156,7 +156,7 @@
     "interval": 2,
     "max-length": 40,
     "on-click": "ags request toggle spotify-popup 0",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   // playerctl-polling replacements for the built-in mpris buttons,
@@ -167,7 +167,7 @@
     "exec": "~/.config/waybar/scripts/spotify-prev.sh",
     "interval": 2,
     "on-click": "playerctl --player=spotify previous",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "custom/spotify-playpause": {
@@ -176,7 +176,7 @@
     "exec": "~/.config/waybar/scripts/spotify-playpause.sh",
     "interval": 1,
     "on-click": "playerctl --player=spotify play-pause",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "custom/spotify-next": {
@@ -185,7 +185,7 @@
     "exec": "~/.config/waybar/scripts/spotify-next.sh",
     "interval": 2,
     "on-click": "playerctl --player=spotify next",
-    "on-click-right": "hyprctl dispatch focuswindow class:spotify || spotify"
+    "on-click-right": "hyprctl dispatch 'hl.dsp.focus({ window = \"class:spotify\" })' || spotify"
   },
 
   "network": {
@@ -212,7 +212,7 @@
     "return-type": "json",
     "exec": "waybar-thunderbird",
     "interval": 5,
-    "on-click": "hyprctl dispatch togglespecialworkspace thundermail"
+    "on-click": "hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"thundermail\")'"
   },
 
   "custom/layout-dp1": {

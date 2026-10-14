@@ -25,7 +25,7 @@ if $force_kill; then
 elif [ "$workspace" = "special:thundermail" ] && [ "$class" = "org.mozilla.Thunderbird" ]; then
     :
 elif [ "$class" = "org.mozilla.Thunderbird" ]; then
-    hyprctl dispatch movetoworkspacesilent special:thundermail
+    hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:thundermail", follow = false })'
 else
-    hyprctl dispatch killactive
+    hyprctl dispatch 'hl.dsp.window.close()'
 fi

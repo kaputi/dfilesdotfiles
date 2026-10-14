@@ -26,4 +26,4 @@ addr=$(hyprctl clients -j | jq -r --argjson x "$cx" --argjson y "$cy" --argjson 
         .at[1] <= $y and $y < (.at[1] + .size[1])
     )] | sort_by([if .floating then 0 else 1 end, .focusHistoryID]) | .[0].address // empty')
 
-[ -n "$addr" ] && hyprctl dispatch focuswindow "address:$addr" >/dev/null
+[ -n "$addr" ] && hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null

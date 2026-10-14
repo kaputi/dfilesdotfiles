@@ -2,4 +2,4 @@
 
 cache="${XDG_CACHE_HOME:-$HOME/.cache}/fuzzel-launch-cmd"
 cmd=$(compgen -c | sort -u | fuzzel --dmenu --cache "$cache" --prompt "run: ")
-[ -n "$cmd" ] && hyprctl dispatch exec -- "$cmd"
+[ -n "$cmd" ] && hyprctl dispatch "hl.dsp.exec_cmd([==[$cmd]==])"
