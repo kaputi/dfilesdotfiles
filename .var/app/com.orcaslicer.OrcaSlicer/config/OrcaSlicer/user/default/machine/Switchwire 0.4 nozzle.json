@@ -42,9 +42,9 @@
 	"print_host": "192.168.1.50",
 	"printable_area": [
 		"0x0",
-		"221x0",
-		"221x249",
-		"0x249"
+		"226x0",
+		"226x257",
+		"0x257"
 	],
 	"printable_height": "235",
 	"printer_agent": "moonraker",
