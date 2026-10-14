@@ -41,6 +41,9 @@
 	"max_layer_height": [
 		"0.45"
 	],
+	"min_layer_height": [
+		"0.15"
+	],
 	"name": "Switchwire 0.6 nozzle",
 	"nozzle_diameter": [
 		"0.6"
