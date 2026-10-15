@@ -317,6 +317,9 @@ config.unix_domains = {}
 for _, domain in ipairs(domains) do
   table.insert(config.unix_domains, { name = domain })
 end
+-- shells live in wezterm-mux-server so they survive a GUI crash (HDMI-A-1 hotplug on DPMS wake).
+-- unlike the commented-out `connect` startup args below, super+Enter still opens a fresh window instead of re-showing all panes.
+config.default_domain = 'unix-1'
 
 -- remote mux: connect from the laptop to the tower (langoliers).
 -- harmless/unused on the tower itself. user/port(6922)/identity come from
