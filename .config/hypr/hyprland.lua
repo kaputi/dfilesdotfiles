@@ -5,7 +5,7 @@
 -- ===== Monitors =====
 -- Run `hyprctl monitors` to find your output names. Adjust resolution/refresh/position.
 hl.monitor({ output = "DP-1",     mode = "2560x1440@144", position = "0x0",    scale = "1" })
-hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@60",  position = "2560x0", scale = "1", transform = 3 })
+hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@100", position = "2560x0", scale = "1", transform = 3 })
 -- transform: 0=normal 1=90° 2=180° 3=270°. Use 1 or 3 for vertical, depending on which side faces up.
 
 -- ===== Environment =====
