@@ -14,12 +14,21 @@
 	"filament_flow_ratio": [
 		"0.94"
 	],
+	"filament_retraction_length": [
+		"0.7"
+	],
 	"filament_settings_id": [
 		"PLA Silk Elegoo (purple)"
 	],
 	"from": "User",
 	"inherits": "Generic PLA Silk @System",
 	"name": "PLA Silk Elegoo (purple)",
+	"nozzle_temperature": [
+		"220"
+	],
+	"nozzle_temperature_initial_layer": [
+		"220"
+	],
 	"pressure_advance": [
 		"0.045"
 	],

@@ -32,6 +32,7 @@
 	],
 	"print_settings_id": "0.30mm Arachne @ mine (0.6)",
 	"reduce_crossing_wall": "1",
+	"reduce_infill_retraction": "0",
 	"skirt_distance": "3",
 	"skirt_speed": "25",
 	"sparse_infill_acceleration": "3500",

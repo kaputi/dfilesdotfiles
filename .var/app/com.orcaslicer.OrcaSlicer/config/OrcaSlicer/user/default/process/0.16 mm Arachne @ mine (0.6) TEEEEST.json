@@ -32,6 +32,7 @@
 	],
 	"print_settings_id": "0.16 mm Arachne @ mine (0.6) TEEEEST",
 	"reduce_crossing_wall": "1",
+	"reduce_infill_retraction": "0",
 	"seam_position": "random",
 	"skirt_distance": "3",
 	"skirt_loops": "2",
