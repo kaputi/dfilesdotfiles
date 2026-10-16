@@ -17,7 +17,7 @@
   },
   {
     "name": "side",
-    "output": "HDMI-A-1",
+    "output": "DP-2",
     "layer": "top",
     "position": "top",
     "height": 25,

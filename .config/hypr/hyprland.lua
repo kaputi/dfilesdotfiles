@@ -5,7 +5,7 @@
 -- ===== Monitors =====
 -- Run `hyprctl monitors` to find your output names. Adjust resolution/refresh/position.
 hl.monitor({ output = "DP-1",     mode = "2560x1440@144", position = "0x0",    scale = "1" })
-hl.monitor({ output = "HDMI-A-1", mode = "1920x1080@100", position = "2560x0", scale = "1", transform = 3 })
+hl.monitor({ output = "DP-2",     mode = "1920x1080@100", position = "2560x0", scale = "1", transform = 3 })
 -- transform: 0=normal 1=90° 2=180° 3=270°. Use 1 or 3 for vertical, depending on which side faces up.
 
 -- ===== Environment =====
@@ -140,7 +140,7 @@ hl.config({
         vrr = 0,                             -- FreeSync OFF. Tried vrr = 2 on 2026-09-14: DP-1 flickers badly in games,
                                              -- a panel trait of this AOC, not a config problem. Don't re-enable.
                                              -- Kept for reference: DP-1 (AOC Q27G2SG4) supports 48-155Hz VRR;
-                                             -- HDMI-A-1 (MSI MP243X) does not and is unaffected. Panel refreshes when
+                                             -- DP-2 (MSI MP243X) is covered by vrr = 0 too. Panel refreshes when
                                              -- the frame is ready instead of on a fixed 143Hz schedule, so uneven
                                              -- frametimes stop turning into judder. 2 = fullscreen only (gamescope
                                              -- counts); 1 = always, which can flicker on the desktop. Set 0 to revert.
@@ -214,7 +214,7 @@ hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })   -- righ
 -- --- Workspaces (per-monitor, awesome-style: same keys, action follows cursor) ---
 -- Script picks the right workspace ID based on which monitor is active:
 --   DP-1     → 1..9
---   HDMI-A-1 → 11..19
+--   DP-2 → 11..19
 for i = 1, 9 do
     hl.bind("SUPER + " .. i,         exec("~/.config/hypr/scripts/ws.sh switch " .. i))
     hl.bind("SUPER + SHIFT + " .. i, exec("~/.config/hypr/scripts/ws.sh move " .. i))
@@ -243,11 +243,11 @@ hl.bind("XF86MonBrightnessUp",   exec("brightnessctl set +5%"),       { locked =
 hl.bind("XF86MonBrightnessDown", exec("brightnessctl set 5%-"),       { locked = true, repeating = true })
 
 -- ===== Workspace pinning =====
--- 9 persistent workspaces per monitor: 1-9 on DP-1, 11-19 on HDMI-A-1.
+-- 9 persistent workspaces per monitor: 1-9 on DP-1, 11-19 on DP-2.
 -- persistent keeps them in waybar even when empty.
 for i = 1, 9 do
     hl.workspace_rule({ workspace = tostring(i),      monitor = "DP-1",     persistent = true, default = (i == 1), layout_opts = { orientation = "left" } })
-    hl.workspace_rule({ workspace = tostring(10 + i), monitor = "HDMI-A-1", persistent = true, default = (i == 1), layout_opts = { orientation = "top" } })
+    hl.workspace_rule({ workspace = tostring(10 + i), monitor = "DP-2", persistent = true, default = (i == 1), layout_opts = { orientation = "top" } })
 end
 
 -- ===== App placement rules (ported from Awesome) =====
@@ -259,7 +259,7 @@ hl.window_rule({ match = { class = "(?i)(pinentry|copyq|dta)" },    float = true
 hl.window_rule({ match = { class = "com.gabm.satty" },              float = true })
 hl.window_rule({ match = { title = "^(Event Tester|Qalculate!)$" }, float = true })
 
--- --- Teams / Slack / Skype → ws 19 (HDMI-A-1), no switch ---
+-- --- Teams / Slack / Skype → ws 19 (DP-2), no switch ---
 hl.window_rule({ match = { class = ".*teams_for_linux.*" },                     opacity = "0.85" })
 hl.window_rule({ match = { class = ".*teams_for_linux.*" },                     workspace = "19 silent" })
 hl.window_rule({ match = { class = "(?i).*microsoft.teams.*" },                 workspace = "19 silent" })
@@ -270,12 +270,12 @@ hl.window_rule({ match = { title = "^(Microsoft Teams.*|Skype.*)$" },           
 hl.window_rule({ match = { class = "(?i).*teams[-_]for[-_]linux.*" },           tile = true })
 hl.window_rule({ match = { class = "(?i).*(microsoft.teams|slack|skype).*" },   tile = true })
 
--- --- Telegram / WhatsApp → ws 18 (HDMI-A-1), no switch ---
+-- --- Telegram / WhatsApp → ws 18 (DP-2), no switch ---
 hl.window_rule({ match = { class = "(?i)(telegram[.-]?desktop)" },   workspace = "18 silent" })
 hl.window_rule({ match = { title = "^(WhatsApp Web|Telegram)$" },     workspace = "18 silent" })
 hl.window_rule({ match = { class = "(?i)(telegram[.-]?desktop)" },   tile = true })
 
--- --- Spotify → ws 17 (HDMI-A-1), no switch ---
+-- --- Spotify → ws 17 (DP-2), no switch ---
 hl.window_rule({ match = { class = "(?i)^spotify$" }, workspace = "17 silent" })
 hl.window_rule({ match = { class = "(?i)^spotify$" }, tile = true })
 

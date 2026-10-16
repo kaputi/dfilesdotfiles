@@ -17,7 +17,7 @@
 # differs from its default. To eliminate the flicker:
 #   - drop restoration: comment out the loop in restore_master_state, and on
 #     dwindle→master Hyprland will reapply each WS's `layout_opts.orientation`
-#     rule from hyprland.lua (DP-1 ws 1..9 = left, HDMI-A-1 ws 11..19 = top).
+#     rule from hyprland.lua (DP-1 ws 1..9 = left, DP-2 ws 11..19 = top).
 #   - or restore only the focused monitor's focused WS (single dispatch, no
 #     focus change).
 #   - or switch to the hy3 plugin which keeps per-workspace layout state

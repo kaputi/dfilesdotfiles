@@ -254,7 +254,7 @@
 
   "custom/layout-hdmi": {
     "format": "{}",
-    "exec": "~/.config/hypr/scripts/orient.sh get HDMI-A-1",
+    "exec": "~/.config/hypr/scripts/orient.sh get DP-2",
     "signal": 8,
     "interval": "once",
     "tooltip-format": "Master orientation (Super+W to cycle)",

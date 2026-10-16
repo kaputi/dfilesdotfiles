@@ -7,7 +7,7 @@
 #
 # Per-monitor workspace numbering:
 #   DP-1     → workspaces 1-9
-#   HDMI-A-1 → workspaces 11-19
+#   DP-2 → workspaces 11-19
 set -e
 action=$1
 n=$2
@@ -24,7 +24,7 @@ mon=$(hyprctl monitors -j | jq -r --argjson cx "$cx" --argjson cy "$cy" '
 
 case "$mon" in
   DP-1)     id=$n ;;
-  HDMI-A-1) id=$((10 + n)) ;;
+  DP-2)     id=$((10 + n)) ;;
   *)        echo "ws.sh: cursor not on a known monitor (got '$mon' at $cx,$cy)" >&2; exit 1 ;;
 esac
 
