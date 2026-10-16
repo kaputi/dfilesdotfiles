@@ -1,0 +1,28 @@
+#compdef ,sshmount
+# ,sshmount takes an optional dst= (local mount dir): complete the key, then
+# local directories after dst=, or the active sshfs mounts when unmounting (-u).
+
+local -a keys mounts expl
+local w
+
+case $PREFIX in
+    dst=*)
+        compset -P 'dst='
+        if (( $words[(I)-u] )); then
+            # /proc/self/mounts writes a space as \040
+            mounts=(${(f)"$(awk '$3 == "fuse.sshfs" { print $2 }' /proc/self/mounts)"})
+            mounts=(${mounts//\\040/ })
+            _wanted mounts expl 'sshfs mount' compadd -a mounts
+        else
+            _files -/
+        fi
+        ;;
+    *)
+        # dst= only once
+        for w in $words[2,CURRENT-1] $words[CURRENT+1,-1]; do
+            [[ $w == dst=* ]] && return 1
+        done
+        keys=('dst=:local mount dir (default ~/sshfs-mount)')
+        _describe -t keys 'argument' keys -S ''
+        ;;
+esac
