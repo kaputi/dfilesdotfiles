@@ -1,28 +1,23 @@
 #compdef ,sshmount
-# ,sshmount takes an optional dst= (local mount dir): complete the key, then
-# local directories after dst=, or the active sshfs mounts when unmounting (-u).
+# ,sshmount user@host[:/path] [DIR] | -u [DIR]: complete local directories for DIR,
+# or the active sshfs mounts when unmounting (-u). The remote isn't completed.
 
-local -a keys mounts expl
-local w
+local -a mounts expl
+local w n=0
 
-case $PREFIX in
-    dst=*)
-        compset -P 'dst='
-        if (( $words[(I)-u] )); then
-            # /proc/self/mounts writes a space as \040
-            mounts=(${(f)"$(awk '$3 == "fuse.sshfs" { print $2 }' /proc/self/mounts)"})
-            mounts=(${mounts//\\040/ })
-            _wanted mounts expl 'sshfs mount' compadd -a mounts
-        else
-            _files -/
-        fi
-        ;;
-    *)
-        # dst= only once
-        for w in $words[2,CURRENT-1] $words[CURRENT+1,-1]; do
-            [[ $w == dst=* ]] && return 1
-        done
-        keys=('dst=:local mount dir (default ~/sshfs-mount)')
-        _describe -t keys 'argument' keys -S ''
-        ;;
-esac
+# positional arguments before the cursor
+for w in $words[2,CURRENT-1]; do
+    [[ $w == -* ]] || (( n++ ))
+done
+
+if (( $words[(I)-u] )); then
+    (( n == 0 )) || return 1
+    # /proc/self/mounts writes space, tab, newline and backslash as \040 \011 \012 \134
+    mounts=(${(f)"$(awk '$3 == "fuse.sshfs" { print $2 }' /proc/self/mounts)"})
+    mounts=(${(g:o:)mounts})
+    _wanted mounts expl 'sshfs mount' compadd -a mounts
+elif (( n == 1 )); then
+    _files -/
+else
+    return 1
+fi
