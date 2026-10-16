@@ -2,41 +2,35 @@
 # Mount a remote directory over sshfs at a local directory, or unmount it.
 # A remote without a path (user@host) mounts the remote home directory.
 #
-#   ,sshmount user@host[:/path] [dst=DIR]
-#   ,sshmount -u [dst=DIR]    unmount
+#   ,sshmount user@host[:/path] [DIR]
+#   ,sshmount -u [DIR]    unmount
 #
-# dst= is the local directory (created if missing), default ~/sshfs-mount.
+# DIR is the local directory (created if missing), default ~/sshfs-mount.
 
 usage() {
-    echo "usage: ,sshmount user@host[:/path] [dst=DIR] | -u [dst=DIR]" >&2
+    echo "usage: ,sshmount user@host[:/path] [DIR] | -u [DIR]" >&2
     exit 2
 }
 
-unmount= remote= dst=
+unmount= args=()
 for arg; do
     case $arg in
         -u) unmount=1 ;;
-        dst=?*) dst=${arg#dst=} ;;
-        -* | dst=) usage ;;
-        *)
-            # a second remote, or a key=value other than dst= (a typo), is an error
-            [[ -z $remote && ! $arg =~ ^[[:alnum:]_]+= ]] || usage
-            remote=$arg
-            ;;
+        -* | '') usage ;;
+        *) args+=("$arg") ;;
     esac
 done
-[[ -n $unmount && -n $remote ]] && usage
-[[ -n $unmount || -n $remote ]] || usage
-
-target=$HOME/sshfs-mount
-if [[ -n $dst ]]; then
-    # zsh doesn't expand ~ after dst=
-    [[ $dst == "~" || $dst == "~/"* ]] && dst=$HOME${dst#"~"}
-    target=$dst
+if [[ -n $unmount ]]; then
+    (( ${#args[@]} <= 1 )) || usage
+    dir=${args[0]}
+else
+    (( ${#args[@]} == 1 || ${#args[@]} == 2 )) || usage
+    remote=${args[0]} dir=${args[1]}
 fi
+
 # Full real path (no symlinks): it's matched against /proc/self/mounts.
 # -m also resolves a dead mount, where stat fails.
-target=$(realpath -m -- "$target")
+target=$(realpath -m -- "${dir:-$HOME/sshfs-mount}")
 
 # Print what's mounted on $target, or fail if nothing is.
 # Reads /proc/self/mounts rather than using mountpoint(1), which stats the directory:
@@ -65,7 +59,7 @@ fi
 
 if src=$(mounted_source); then
     hint=",sshmount -u"
-    [[ -n $dst ]] && hint+=" $(printf %q "dst=$target")"
+    [[ -n $dir ]] && hint+=" $(printf %q "$target")"
     echo "$src is already mounted on $target, run $hint first" >&2
     exit 1
 fi
