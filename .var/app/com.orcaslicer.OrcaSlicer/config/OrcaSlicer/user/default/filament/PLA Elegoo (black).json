@@ -5,8 +5,14 @@
 	"default_filament_colour": [
 		"#000000"
 	],
+	"enable_pressure_advance": [
+		"1"
+	],
 	"filament_extruder_variant": [
 		"Direct Drive Standard"
+	],
+	"filament_retraction_length": [
+		"0.7"
 	],
 	"filament_settings_id": [
 		"PLA Elegoo (black)"
@@ -17,5 +23,8 @@
 	"from": "User",
 	"inherits": "Generic PLA @System",
 	"name": "PLA Elegoo (black)",
+	"pressure_advance": [
+		"0.045"
+	],
 	"version": "2.4.0.3"
 }
