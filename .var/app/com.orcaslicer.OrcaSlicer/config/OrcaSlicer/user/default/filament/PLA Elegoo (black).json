@@ -1,0 +1,21 @@
+{
+	"compatible_printers": [
+		"MyKlipper 0.4 nozzle"
+	],
+	"default_filament_colour": [
+		"#000000"
+	],
+	"filament_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"filament_settings_id": [
+		"PLA Elegoo (black)"
+	],
+	"filament_vendor": [
+		"Elegoo"
+	],
+	"from": "User",
+	"inherits": "Generic PLA @System",
+	"name": "PLA Elegoo (black)",
+	"version": "2.4.0.3"
+}
