@@ -17,6 +17,9 @@
 	"filament_max_volumetric_speed": [
 		"10"
 	],
+	"filament_retraction_length": [
+		"0.7"
+	],
 	"filament_settings_id": [
 		"Generic ASA @ mine (tuned on eSUN ASA+)"
 	],
