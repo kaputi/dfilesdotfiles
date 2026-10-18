@@ -23,9 +23,6 @@
 	"filament_settings_id": [
 		"PLA Silk Elegoo (purple)"
 	],
-	"filament_z_hop": [
-		"0"
-	],
 	"from": "User",
 	"inherits": "Generic PLA Silk @System",
 	"name": "PLA Silk Elegoo (purple)",
