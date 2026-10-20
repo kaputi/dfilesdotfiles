@@ -251,6 +251,15 @@ gdf() {
   d=$(command ,j2) && [[ -n $d ]] && cd -- "$d"
 }
 
+,wt() {
+  (($#)) && {
+    command ,wt "$@"
+    return
+  }
+  local d
+  d=$(command ,wt) && [[ -n $d ]] && cd -- "$d"
+}
+
 # jump to a cmr worktree: 0=estacion, 1=estacion-wt, N=estacion-wtN
 # `,est 3` goes straight there; bare `,est` lists what exists and prompts
 ,est() {
