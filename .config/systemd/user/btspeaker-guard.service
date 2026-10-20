@@ -1,0 +1,10 @@
+[Unit]
+Description=Keep paired phones blocked from Bluetooth unless ,btspeaker is on
+
+[Service]
+ExecStart=%h/.local/bin/,btspeaker guard
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

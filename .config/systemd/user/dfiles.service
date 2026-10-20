@@ -1,0 +1,28 @@
+# Written by `dfiles daemon install`, which overwrites it on every run: change
+# the interval with `dfiles daemon install --interval 10m`, not here.
+#
+# Pause:  systemctl --user stop dfiles
+# Logs:   journalctl --user -u dfiles -f
+# Remove: dfiles daemon uninstall
+
+[Unit]
+Description=dfiles: commit, push and merge promoted dotfiles
+
+[Service]
+ExecStart="/home/eduardo/go/bin/dfiles" daemon --interval 5m0s
+# Never wait on a password prompt nobody can answer. DISPLAY is set in a
+# desktop session, so without BatchMode ssh could open an askpass window
+# every tick. The remote must accept non-interactive auth: an ssh-agent
+# socket visible to the user session, a key without a passphrase, or a
+# credential helper.
+Environment=GIT_TERMINAL_PROMPT=0
+Environment="GIT_SSH_COMMAND=ssh -o BatchMode=yes"
+# SIGTERM goes to dfiles only. It finishes a local commit or merge before
+# exiting; systemd's default would signal git directly and cut it off.
+KillMode=mixed
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=150
+
+[Install]
+WantedBy=default.target
