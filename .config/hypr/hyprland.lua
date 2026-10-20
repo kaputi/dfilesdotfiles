@@ -258,6 +258,8 @@ hl.window_rule({ match = { class = "^(Tor Browser)$" },             float = true
 hl.window_rule({ match = { class = "(?i)(pinentry|copyq|dta)" },    float = true })
 hl.window_rule({ match = { class = "com.gabm.satty" },              float = true })
 hl.window_rule({ match = { title = "^(Event Tester|Qalculate!)$" }, float = true })
+-- GTK file picker (portal runs under XWayland, see xdg-desktop-portal-gtk.service.d/x11.conf)
+hl.window_rule({ match = { class = "(?i)xdg-desktop-portal-gtk" }, float = true, size = "monitor_w*0.6 monitor_h*0.6", center = true })
 
 -- --- Teams / Slack / Skype → ws 19 (DP-2), no switch ---
 hl.window_rule({ match = { class = ".*teams_for_linux.*" },                     opacity = "0.85" })
