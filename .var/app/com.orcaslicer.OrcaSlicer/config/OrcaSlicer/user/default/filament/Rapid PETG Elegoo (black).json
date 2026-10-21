@@ -40,6 +40,9 @@
 		"70"
 	],
 	"inherits": "Generic PETG @System",
+	"internal_bridge_fan_speed": [
+		"50"
+	],
 	"name": "Rapid PETG Elegoo (black)",
 	"nozzle_temperature": [
 		"245"
@@ -52,9 +55,6 @@
 	],
 	"nozzle_temperature_range_low": [
 		"240"
-	],
-	"overhang_fan_speed": [
-		"50"
 	],
 	"pressure_advance": [
 		"0.035"
