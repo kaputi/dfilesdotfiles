@@ -11,6 +11,9 @@
 	"filament_extruder_variant": [
 		"Direct Drive Standard"
 	],
+	"filament_max_volumetric_speed": [
+		"20"
+	],
 	"filament_retraction_length": [
 		"0.7"
 	],
