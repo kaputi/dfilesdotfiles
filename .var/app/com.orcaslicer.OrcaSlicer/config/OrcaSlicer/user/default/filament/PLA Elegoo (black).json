@@ -15,7 +15,7 @@
 		"20"
 	],
 	"filament_retraction_length": [
-		"0.7"
+		"0.5"
 	],
 	"filament_settings_id": [
 		"PLA Elegoo (black)"
@@ -30,7 +30,7 @@
 	"inherits": "Generic PLA @System",
 	"name": "PLA Elegoo (black)",
 	"nozzle_temperature": [
-		"215"
+		"210"
 	],
 	"nozzle_temperature_initial_layer": [
 		"215"
