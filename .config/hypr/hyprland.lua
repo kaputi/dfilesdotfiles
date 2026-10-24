@@ -45,6 +45,24 @@ end)
 hl.bind("mouse_down", hl.dsp.exec_cmd("~/.local/bin/wheel-focus.sh"), { non_consuming = true })
 hl.bind("mouse_up",   hl.dsp.exec_cmd("~/.local/bin/wheel-focus.sh"), { non_consuming = true })
 
+-- Shift held at left release, after a drag, copies the selection to the clipboard
+-- (WezTerm's own Shift+release, everywhere). ignore_mods: release binds otherwise
+-- match the mods held at press time, so Shift pressed mid-drag would never fire.
+local shift_copy_press
+hl.bind("mouse:272", function()
+    shift_copy_press = hl.get_cursor_pos()
+end, { non_consuming = true, ignore_mods = true })
+hl.bind("mouse:272", function()
+    if not (hl.is_key_down("Shift_L") or hl.is_key_down("Shift_R")) then return end
+    -- a plain Shift+click (open link in new window, extend selection) is not a copy
+    local c, p = hl.get_cursor_pos(), shift_copy_press
+    if p and c and math.abs(c.x - p.x) + math.abs(c.y - p.y) < 4 then return end
+    -- WezTerm already does this itself
+    local w = hl.get_active_window()
+    if w and w.class == "org.wezfurlong.wezterm" then return end
+    hl.exec_cmd("~/.local/bin/shift-copy.sh")
+end, { non_consuming = true, ignore_mods = true, release = true })
+
 -- ===== Input =====
 hl.config({
     input = {
