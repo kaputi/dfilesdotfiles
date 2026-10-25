@@ -23,6 +23,9 @@
 	"filament_settings_id": [
 		"Generic ASA @ mine (tuned on eSUN ASA+)"
 	],
+	"filament_z_hop_types": [
+		"Slope Lift"
+	],
 	"from": "User",
 	"hot_plate_temp": [
 		"105"
