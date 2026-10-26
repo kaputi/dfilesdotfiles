@@ -5,7 +5,7 @@
 	"bridge_speed": "25",
 	"brim_type": "no_brim",
 	"default_acceleration": "3500",
-	"elefant_foot_compensation": "0.4",
+	"elefant_foot_compensation": "0.5",
 	"from": "User",
 	"gap_infill_speed": "40",
 	"inherits": "0.20mm Standard @MyKlipper",
@@ -52,5 +52,6 @@
 	"travel_acceleration": "3500",
 	"travel_speed": "150",
 	"version": "2.4.0.1",
-	"wall_loops": "2"
+	"wall_loops": "2",
+	"xy_hole_compensation": "0.15"
 }
