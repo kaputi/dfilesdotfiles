@@ -52,5 +52,5 @@
 	"travel_acceleration": "3500",
 	"travel_speed": "150",
 	"version": "2.4.0.1",
-	"xy_hole_compensation": "0.15"
+	"xy_hole_compensation": "0.2"
 }
