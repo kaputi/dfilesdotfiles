@@ -304,6 +304,26 @@ hl.window_rule({ match = { class = "(?i)^spotify$" }, tile = true })
 hl.window_rule({ match = { class = "(?i).*(thunderbird|mail).*" }, workspace = "special:thundermail silent" })
 hl.window_rule({ match = { class = "(?i).*(thunderbird|mail).*" }, tile = true })
 
+-- --- Electron dev apps → reopen on the workspace they were hidden/closed on ---
+-- Why: on every HMR save the app recreates windows or show()s hidden ones, and Hyprland
+-- treats each as a brand-new window on the focused monitor, so a window hidden on DP-2
+-- popped back up on DP-1. Wayland clients can't place their own windows, and the fix had
+-- to stay out of the Electron project, so the compositor does it here.
+-- How: hide() reaches Hyprland as window.close, so remember the workspace per class+title
+-- there and move the window back on window.open_early. Kept in RAM; a config reload forgets
+-- it. Add another Electron project's class to restore_classes to cover it too.
+local restore_classes = { ["Ultima Workstation"] = true }
+local restore_ws = {}
+hl.on("window.close", function(w)
+    if restore_classes[w.class] and w.workspace then
+        restore_ws[w.class .. "|" .. w.title] = w.workspace.name
+    end
+end)
+hl.on("window.open_early", function(w)
+    local ws = restore_classes[w.class] and restore_ws[w.class .. "|" .. w.title]
+    if ws then hl.dispatch(hl.dsp.window.move({ workspace = ws, follow = false, window = w })) end
+end)
+
 -- ===== Intentionally dropped from your Awesome config =====
 -- - Mod+c (quickconfig)             — no longer used
 -- - Mod+/ (help popup)              — no native equivalent; can add a fuzzel cheatsheet later
