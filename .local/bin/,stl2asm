@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+# Turn a folder of STLs (or a list of them) into a FreeCAD assembly ready for joints,
+# then open it. Each STL becomes a refined solid (clean flat faces instead of
+# triangles), parts are laid out in a row along X and the first one is grounded.
+# Round holes and round pin ends get a thin ring beside them: a joint on a ring snaps
+# to the hole's exact center, which mesh holes (polygons) don't have.
+
+usage() {
+    echo "usage: ,stl2asm [-f] <folder>" >&2
+    echo "       ,stl2asm [-f] <file.stl> [file.stl ...]" >&2
+    echo "Writes <folder>/<folder>-asm.FCStd; -f overwrites it." >&2
+    exit 1
+}
+
+force=0
+[[ $1 == -f ]] && { force=1; shift; }
+(( $# )) || usage
+
+files=()
+if (( $# == 1 )) && [[ -d $1 ]]; then
+    outdir=$(realpath -- "$1")
+    shopt -s nullglob nocaseglob
+    files=("$outdir"/*.stl)
+    shopt -u nullglob nocaseglob
+else
+    for f in "$@"; do
+        [[ -f $f ]] || { echo "Not a file: $f" >&2; exit 1; }
+        files+=("$(realpath -- "$f")")
+    done
+    outdir=$(dirname -- "${files[0]}")
+fi
+(( ${#files[@]} )) || { echo "No STL files in $outdir" >&2; exit 1; }
+
+out="$outdir/$(basename -- "$outdir")-asm.FCStd"
+if [[ -e $out ]] && (( !force )); then
+    echo "Already exists (use -f to overwrite): $out" >&2
+    exit 1
+fi
+
+py=$(cat <<'PY'
+import math, os, sys, traceback
+import numpy as np
+import FreeCAD as App
+import Mesh, Part, JointObject
+
+SLOW = 100_000        # triangles
+REFINE_MAX = 30_000   # refine time grows ~n^2.6: 13k = 5 s, 98k = 16 min
+GAP = 10.0            # mm between parts
+FLAT_TOL = math.radians(0.1)  # max angle between triangles of one flat face
+ROUND_MIN = 8         # corners a loop needs before it can count as round
+# Max corner distance from the fitted circle. Real holes measure ~0.00001 mm; the
+# look-alikes (sphere pole patches, long slots with chamfered ends) 0.3% of r or 0.08 mm.
+ROUND_TOL = 0.001     # fraction of radius
+ROUND_TOL_MM = 0.02
+
+
+def tris(n):
+    return f"{n // 1000}k" if n >= 1000 else str(n)
+
+
+def to_shape(mesh, refine):
+    """Mesh -> solid (one per closed body), or the sewn shell if not watertight.
+    Returns (shape, is_solid)."""
+    shape = Part.Shape()
+    shape.makeShapeFromMesh(mesh.Topology, 0.05)
+    shells = shape.Shells
+    solid = bool(shells) and all(s.isClosed() for s in shells)
+    if solid:
+        solids = [Part.Solid(s) for s in shells]
+        shape = solids[0] if len(solids) == 1 else Part.makeCompound(solids)
+    if refine:
+        shape = shape.removeSplitter()
+    return shape, solid
+
+
+def flat_loops(mesh):
+    """Yield (points, outward normal, is_outer) for every boundary loop of every flat
+    area of the mesh. Works on the triangles with a tolerance because refine only
+    merges exactly coplanar ones, and STL rounding often leaves flat faces as loose
+    triangles."""
+    pts, tris = mesh.Topology
+    P = np.array([(p.x, p.y, p.z) for p in pts])
+    T = np.array(tris)
+    n = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
+    length = np.linalg.norm(n, axis=1)
+    sized = length > 1e-12
+    n[sized] /= length[sized, None]
+
+    # Triangles sharing an edge are neighbours.
+    edges = np.sort(np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]]), axis=1)
+    owner = np.tile(np.arange(len(T)), 3)
+    _, edge_id = np.unique(edges, axis=0, return_inverse=True)
+    order = np.argsort(edge_id.ravel(), kind="stable")
+    ids, owners = edge_id.ravel()[order], owner[order]
+    same = np.flatnonzero(ids[1:] == ids[:-1])
+    near = [[] for _ in range(len(T))]
+    for a, b in zip(owners[same].tolist(), owners[same + 1].tolist()):
+        near[a].append(b)
+        near[b].append(a)
+
+    # Grow flat areas: neighbours within FLAT_TOL of the first triangle's normal.
+    # Zero-area slivers join whatever area reaches them.
+    cos_tol = math.cos(FLAT_TOL)
+    nl, tl, sized = n.tolist(), T.tolist(), sized.tolist()
+    taken = [False] * len(T)
+    for seed in range(len(T)):
+        if taken[seed] or not sized[seed]:
+            continue
+        sx, sy, sz = nl[seed]
+        taken[seed] = True
+        area, todo = [seed], [seed]
+        while todo:
+            for nb in near[todo.pop()]:
+                if not taken[nb] and (not sized[nb] or sx * nl[nb][0] + sy * nl[nb][1] + sz * nl[nb][2] >= cos_tol):
+                    taken[nb] = True
+                    area.append(nb)
+                    todo.append(nb)
+        if len(area) < ROUND_MIN - 2:
+            continue
+
+        # Boundary = directed edges whose reverse isn't in the area; chain them.
+        border = set()
+        for t in area:
+            a, b, c = tl[t]
+            for e in ((a, b), (b, c), (c, a)):
+                if (e[1], e[0]) in border:
+                    border.discard((e[1], e[0]))
+                else:
+                    border.add(e)
+        nxt, pinched = {}, set()
+        for a, b in border:
+            if a in nxt:
+                pinched.add(a)
+            nxt[a] = b
+        loops = []
+        while nxt:
+            start, cur = nxt.popitem()
+            loop = [start]
+            while cur != start and cur in nxt:
+                loop.append(cur)
+                cur = nxt.pop(cur)
+            if cur == start and len(loop) >= ROUND_MIN and not pinched.intersection(loop):
+                loops.append(P[loop])
+        if loops:
+            sizes = [np.ptp(lp, axis=0).sum() for lp in loops]
+            for lp, s in zip(loops, sizes):
+                yield lp, n[seed], s == max(sizes)
+
+
+def fit_circle(points, normal):
+    """Least-squares circle through points (k×3) in a plane with this normal.
+    Returns (center, radius), or None if the points aren't on one circle."""
+    u = np.cross(normal, (1, 0, 0) if abs(normal[0]) < 0.9 else (0, 1, 0))
+    u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+    o = points[0]
+    xy = (points - o) @ np.column_stack([u, v])
+    # x² + y² = 2·cx·x + 2·cy·y + (r² - cx² - cy²)
+    a = np.column_stack([2 * xy, np.ones(len(xy))])
+    (cx, cy, k), *_ = np.linalg.lstsq(a, (xy ** 2).sum(axis=1), rcond=None)
+    r2 = k + cx * cx + cy * cy
+    if r2 <= 0:
+        return None
+    r = math.sqrt(r2)
+    if np.abs(np.hypot(xy[:, 0] - cx, xy[:, 1] - cy) - r).max() > min(ROUND_TOL * r, ROUND_TOL_MM):
+        return None
+    return o + cx * u + cy * v, r
+
+
+def hole_markers(mesh):
+    """A circle edge for every round loop on a flat face: holes and round pin ends.
+    A joint on a circle edge snaps to its exact center, which mesh polygons don't
+    have. The ring sits just beside the loop, on the face, so it doesn't overlap
+    the loop's own edges, and points out of the part like the face does."""
+    rings = []
+    for points, normal, outer in flat_loops(mesh):
+        fit = fit_circle(points, normal)
+        if fit is None:
+            continue
+        center, r = fit
+        gap = min(0.25 * r, 1.0)
+        r = r - gap if outer else r + gap
+        rings.append(Part.makeCircle(r, App.Vector(*center), App.Vector(*normal)))
+    return rings
+
+
+def main():
+    paths = os.environ["STL2ASM_FILES"].splitlines()
+    out = os.environ["STL2ASM_OUT"]
+
+    doc = App.newDocument("Assembly")
+    asm = doc.addObject("Assembly::AssemblyObject", "Assembly")
+    asm.Type = "Assembly"
+    joints = asm.newObject("Assembly::JointGroup", "Joints")
+
+    parts, skipped = [], []
+    x = 0.0
+    width = max(len(os.path.basename(p)) for p in paths)
+    total = len(paths)
+    for i, path in enumerate(paths, 1):
+        name = os.path.basename(path)
+        line = f"[{i:>{len(str(total))}}/{total}] {name:<{width}}"
+        try:
+            mesh = Mesh.Mesh(path)
+            if mesh.CountFacets == 0:
+                raise ValueError("no triangles")
+            refine = mesh.CountFacets <= REFINE_MAX
+            shape, solid = to_shape(mesh, refine)
+            rings = hole_markers(mesh)
+        except Exception as e:
+            print(f"{line}  skipped: {e}", flush=True)
+            skipped.append(name)
+            continue
+
+        stem = os.path.splitext(name)[0]
+        part = asm.newObject("Part::Feature", stem)
+        part.Label = stem
+        part.Shape = Part.makeCompound([shape] + rings) if rings else shape
+        bb = shape.BoundBox
+        part.Placement = App.Placement(App.Vector(x - bb.XMin, 0, 0), App.Rotation())
+        x += bb.XLength + GAP
+        parts.append(part)
+
+        notes = ["ok"]
+        if mesh.CountFacets > SLOW:
+            notes.append("slow")
+        if not refine:
+            notes.append("not refined")
+        if not solid:
+            notes.append("not solid")
+        if rings:
+            notes.append(f"{len(rings)} circle" + ("s" if len(rings) > 1 else ""))
+        print(f"{line}  {tris(mesh.CountFacets):>4} tris  {'  '.join(notes)}", flush=True)
+
+    if not parts:
+        print("Nothing converted, no file written.")
+        return 1
+
+    ground = joints.newObject("App::FeaturePython", "GroundedJoint")
+    JointObject.GroundedJoint(ground, parts[0])
+    doc.recompute()
+
+    # Remove first so FreeCAD doesn't leave a backup copy next to the STLs.
+    if os.path.exists(out):
+        os.remove(out)
+    doc.saveAs(out)
+    if skipped:
+        print("Skipped:", ", ".join(skipped))
+    return 0
+
+
+try:
+    rc = main()
+except Exception:
+    traceback.print_exc()
+    rc = 1
+sys.stdout.flush()
+sys.stderr.flush()
+os._exit(rc)
+PY
+)
+
+export STL2ASM_OUT=$out
+export STL2ASM_FILES=$(printf '%s\n' "${files[@]}")
+# freecadcmd crashes on some longer `-c` strings, so run the code from a file.
+script=$(mktemp --suffix=.py) || exit 1
+trap 'rm -f "$script"' EXIT
+printf '%s\n' "$py" >"$script"
+# The assembly solver prints its own status lines on recompute; drop them.
+freecadcmd -c "exec(open('$script').read())" | grep -v -e '^MbD:' -e '^Time = '
+(( PIPESTATUS[0] == 0 )) || exit 1
+
+echo "-> $out"
+[[ -n $STL2ASM_NO_OPEN ]] && exit 0
+
+# A file saved headless has no GUI state: FreeCAD opens it with every object hidden
+# and the camera somewhere else. This one-time macro runs inside the GUI after the
+# file loads, unhides everything but the origin, fits an isometric view and saves,
+# so the file opens correctly from then on, then activates the assembly so the
+# joint buttons are ready. It deletes itself.
+fixup=$(mktemp --suffix=.py) || exit 1
+cat >"$fixup" <<PYFIX
+import os
+import FreeCAD as App
+import FreeCADGui as Gui
+import JointObject
+from PySide import QtCore, QtWidgets
+
+OUT = $(python3 -c 'import sys; print(repr(sys.argv[1]))' "$out")
+os.remove($(python3 -c 'import sys; print(repr(sys.argv[1]))' "$fixup"))
+ORIGIN_TYPES = ("App::Origin", "App::Line", "App::Plane", "App::Point")
+
+
+def finish():
+    docs = [d for d in App.listDocuments().values() if d.FileName == OUT]
+    if not docs:
+        return
+    doc = docs[0]
+    for o in doc.Objects:
+        if o.TypeId in ORIGIN_TYPES:
+            continue
+        o.ViewObject.Visibility = True
+        if hasattr(o, "ObjectToGround"):
+            JointObject.ViewProviderGroundedJoint(o.ViewObject)
+
+    # Bring the model tab (titled "<label> : 1") in front of the Start page.
+    gview = Gui.getDocument(doc.Name).mdiViewsOfType("Gui::View3DInventor")[0]
+    mdi = Gui.getMainWindow().findChild(QtWidgets.QMdiArea)
+    for sub in mdi.subWindowList():
+        if sub.widget() is not None and sub.widget().windowTitle().split(" : ")[0] == doc.Label:
+            mdi.setActiveSubWindow(sub)
+    gview.viewIsometric()
+    gview.fitAll()
+    doc.save()
+
+    # Same as Assembly > Activate Assembly: joint buttons only work in edit mode.
+    asm = [o for o in doc.Objects if o.isDerivedFrom("Assembly::AssemblyObject")][0]
+    Gui.activateWorkbench("AssemblyWorkbench")
+    Gui.getDocument(doc.Name).setEdit(asm.Name)
+
+
+# Wait for the window and Start page to settle before touching the view.
+QtCore.QTimer.singleShot(1500, finish)
+PYFIX
+setsid -f uwsm app -- freecad "$out" "$fixup" >/dev/null 2>&1
