@@ -169,10 +169,8 @@ hl.config({
 local exec = hl.dsp.exec_cmd
 
 -- --- Apps & Launchers ---
--- --always-new-process: a window closed inside a shared wezterm-gui keeps its GPU memory
--- (~80MB each with the background image); its own process frees everything on exit
-hl.bind("SUPER + Return", exec("wezterm start --always-new-process"))
-hl.bind("SUPER + F1",     exec("wezterm start --always-new-process -- yazi")) -- file manager
+hl.bind("SUPER + Return", exec("wezterm"))
+hl.bind("SUPER + F1",     exec("wezterm start -- yazi"))                    -- file manager
 hl.bind("SUPER + F2",     exec("uwsm app -- com.brave.Browser.desktop"))
 hl.bind("SUPER + 0",      exec("powerdmenu"))                               -- your custom power menu
 hl.bind("SUPER + space",  exec("fuzzel"))                                   -- .desktop app launcher

@@ -15,8 +15,11 @@ config.swallow_mouse_click_on_pane_focus = true
 
 -- gui
 config.color_scheme = 'Dracula'
+-- 1280x720 copy of weylandYutani.jpg: every window closed inside the shared
+-- wezterm-gui keeps its GPU memory, and the leak scales with this image
+-- (2560x1440 ≈ 55-80MB per window, 1280x720 ≈ 27MB). Restart wezterm every few days.
 config.window_background_image =
-  '/home/eduardo/Pictures/WallpapersDev/weylandYutani.jpg'
+  '/home/eduardo/Pictures/WallpapersDev/weylandYutani-1280x720.jpg'
 config.inactive_pane_hsb = {
   saturation = 0.9,
   brightness = 0.35,
