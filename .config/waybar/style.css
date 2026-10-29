@@ -126,3 +126,8 @@ window#waybar {
 #custom-spotify-next.stopped {
     padding: 0;
 }
+
+/* claudehub (Claude Code sessions): same spacing as cpu and memory */
+#custom-claudehub {
+    padding: 0 10px;
+}
