@@ -5,6 +5,13 @@
 
 input=$(/bin/cat)
 
+# claudehub reads usage limits and context % from this copy.
+hub_dir="${XDG_RUNTIME_DIR:-/tmp}/claudehub/statusline"
+hub_id=$(echo "$input" | jq -r '.session_id // empty')
+if [[ -n $hub_id ]] && mkdir -p "$hub_dir"; then
+  printf '%s' "$input" >"$hub_dir/$hub_id.json.tmp" && mv "$hub_dir/$hub_id.json.tmp" "$hub_dir/$hub_id.json"
+fi
+
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd')
 model=$(echo "$input" | jq -r '.model.display_name // ""')
 effort=$(echo "$input" | jq -r '.effort.level // empty')
