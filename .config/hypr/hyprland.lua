@@ -312,6 +312,7 @@ hl.window_rule({ match = { class = "(?i).*(thunderbird|mail).*" }, tile = true }
 -- How: hide() reaches Hyprland as window.close, so remember the workspace per class+title
 -- there and move the window back on window.open_early. Kept in RAM; a config reload forgets
 -- it. Add another Electron project's class to restore_classes to cover it too.
+-- pid: only restore within the same app process; a fresh app start opens where you are.
 -- no_initial_focus: a moved window would otherwise grab focus on map and pull it to its
 -- monitor, away from the editor (the move dispatcher has no "silent" focus handling).
 local restore_classes = { ["Ultima Workstation"] = true }
@@ -321,12 +322,14 @@ for class in pairs(restore_classes) do
 end
 hl.on("window.close", function(w)
     if restore_classes[w.class] and w.workspace then
-        restore_ws[w.class .. "|" .. w.title] = w.workspace.name
+        restore_ws[w.class .. "|" .. w.title] = { ws = w.workspace.name, pid = w.pid }
     end
 end)
 hl.on("window.open_early", function(w)
-    local ws = restore_classes[w.class] and restore_ws[w.class .. "|" .. w.title]
-    if ws then hl.dispatch(hl.dsp.window.move({ workspace = ws, follow = false, window = w })) end
+    local saved = restore_classes[w.class] and restore_ws[w.class .. "|" .. w.title]
+    if saved and saved.pid == w.pid then
+        hl.dispatch(hl.dsp.window.move({ workspace = saved.ws, follow = false, window = w }))
+    end
 end)
 
 -- ===== Intentionally dropped from your Awesome config =====
