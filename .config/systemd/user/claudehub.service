@@ -1,0 +1,23 @@
+# Written by `claudehub install`, which overwrites it on every run.
+#
+# Pause:  systemctl --user stop claudehub
+# Logs:   journalctl --user -u claudehub -f
+# Remove: claudehub uninstall
+
+[Unit]
+Description=claudehub: watch Claude Code sessions, alert, serve the hub and waybar
+# Started with the graphical session, after UWSM has exported Hyprland's
+# environment: the daemon runs hyprctl, wezterm cli and notify-send.
+After=graphical-session.target
+PartOf=graphical-session.target
+# dfiles copies this unit to machines that may not have the binary: there
+# systemd skips the service instead of restarting it every few seconds.
+ConditionPathExists=/home/eduardo/go/bin/claudehub
+
+[Service]
+ExecStart="/home/eduardo/go/bin/claudehub" daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

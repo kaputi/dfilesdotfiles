@@ -259,5 +259,17 @@
     "interval": "once",
     "tooltip-format": "Master orientation (Super+W to cycle)",
     "on-click": "~/.config/hypr/scripts/orient.sh cycle"
+  },
+
+  // claudehub: Claude Code sessions. Hidden when the binary is gone
+  // (exec-if) or after `claudehub uninstall`; restarts itself on upgrades.
+  "custom/claudehub": {
+    "exec": "/home/eduardo/go/bin/claudehub waybar",
+    "exec-if": "test -x /home/eduardo/go/bin/claudehub",
+    "restart-interval": 10,
+    "return-type": "json",
+    "on-click": "/home/eduardo/go/bin/claudehub open",
+    "on-click-right": "/home/eduardo/go/bin/claudehub mute toggle",
+    "exec-on-event": false
   }
 }

@@ -12,7 +12,7 @@
     "include": ["~/.config/waybar/modules.jsonc"],
 
     "modules-left":   ["hyprland/workspaces", "custom/windows", "hyprland/window"],
-    "modules-center": ["clock"],
+    "modules-center": ["clock", "custom/claudehub"],
     "modules-right":  ["custom/spotify-hybrid", "custom/spotify-prev", "custom/spotify-playpause", "custom/spotify-next", "cpu#color", "memory", "custom/disks", "custom/thunderbird", "custom/keyboard", "custom/layout-dp1"]
   },
   {
