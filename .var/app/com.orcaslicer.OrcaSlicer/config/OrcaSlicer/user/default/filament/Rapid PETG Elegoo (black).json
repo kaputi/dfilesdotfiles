@@ -29,6 +29,9 @@
 	"filament_settings_id": [
 		"Rapid PETG Elegoo (black)"
 	],
+	"filament_type": [
+		"Rapid PETG"
+	],
 	"filament_vendor": [
 		"Elegoo"
 	],
@@ -43,9 +46,6 @@
 		"70"
 	],
 	"inherits": "Generic PETG @System",
-	"internal_bridge_fan_speed": [
-		"-1"
-	],
 	"name": "Rapid PETG Elegoo (black)",
 	"nozzle_temperature": [
 		"245"
