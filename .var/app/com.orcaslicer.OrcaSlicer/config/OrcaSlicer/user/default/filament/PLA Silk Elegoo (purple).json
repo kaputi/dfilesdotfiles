@@ -23,18 +23,15 @@
 	"filament_settings_id": [
 		"PLA Silk Elegoo (purple)"
 	],
+	"filament_type": [
+		"PLA SIlk"
+	],
 	"filament_z_hop_types": [
 		"Slope Lift"
 	],
 	"from": "User",
 	"inherits": "Generic PLA Silk @System",
 	"name": "PLA Silk Elegoo (purple)",
-	"nozzle_temperature": [
-		"220"
-	],
-	"nozzle_temperature_initial_layer": [
-		"220"
-	],
 	"pressure_advance": [
 		"0.045"
 	],
