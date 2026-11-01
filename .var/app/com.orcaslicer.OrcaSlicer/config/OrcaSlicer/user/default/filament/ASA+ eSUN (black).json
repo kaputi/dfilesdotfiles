@@ -2,6 +2,9 @@
 	"compatible_printers": [
 		"MyKlipper 0.4 nozzle"
 	],
+	"default_filament_colour": [
+		"#000000"
+	],
 	"enable_pressure_advance": [
 		"1"
 	],
@@ -21,7 +24,13 @@
 		"0.7"
 	],
 	"filament_settings_id": [
-		"Generic ASA @ mine (tuned on eSUN ASA+)"
+		"ASA+ eSUN (black)"
+	],
+	"filament_type": [
+		"ASA+"
+	],
+	"filament_vendor": [
+		"eSUN"
 	],
 	"filament_z_hop_types": [
 		"Slope Lift"
@@ -31,7 +40,7 @@
 		"105"
 	],
 	"inherits": "Generic ASA @System",
-	"name": "Generic ASA @ mine (tuned on eSUN ASA+)",
+	"name": "ASA+ eSUN (black)",
 	"nozzle_temperature": [
 		"250"
 	],
