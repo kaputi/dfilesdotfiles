@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Make a git worktree for an existing branch and symlink ignored local files into it.
+# Make a git worktree for a branch and symlink ignored local files into it.
 #
 #   ,wt    run it inside a git repo; it asks for everything
 #
 # Branch: local and remote branches, newest first. Ones already checked out in a
-#   worktree are hidden; a remote branch gets a local tracking branch.
+#   worktree are hidden; a remote branch gets a local tracking branch. Ctrl-N
+#   makes a new branch named after the typed text instead, from a base you pick
+#   (current branch first). It tracks nothing until your first push -u.
 # Destination: prefilled with the next free <repo>-wt, <repo>-wt2... beside the main
 #   worktree. Created if missing; refused if it's a file or a non-empty dir.
 # Files: git-ignored files matching the globs in ~/.config/kaputi/wt/links, searched
@@ -21,7 +23,7 @@ cancel() { die "cancelled, nothing created"; }
 
 if (( $# )); then
     case $1 in
-        -h|--help) sed -n '2,14s/^# \{0,1\}//p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,16s/^# \{0,1\}//p' "$0"; exit 0 ;;
         *) die "unknown argument: $1 ($usage)" ;;
     esac
 fi
@@ -52,27 +54,77 @@ read_list() {
 mapfile -t links < <(read_list "$conf/links")
 mapfile -t skips < <(read_list "$conf/skip")
 
-# Branch: "<ref> TAB <name> TAB <age>", fzf shows name and age
+# Branch: "<ref> TAB <name> TAB <age>", fzf shows name and age. lines: branches
+# free to check out. bases: everything a new branch can start from, current first.
 declare -A local_br
 while IFS= read -r b; do local_br[$b]=1; done < <(git for-each-ref --format='%(refname:lstrip=2)' refs/heads)
+cur=$(git symbolic-ref -q HEAD)
 lines=()
+bases=()
 while IFS=$'\t' read -r ref age; do
     case $ref in
+        refs/remotes/*/HEAD) continue ;;
         refs/heads/*)
-            [[ -n ${busy[$ref]-} ]] && continue
-            lines+=("$ref"$'\t'"${ref#refs/heads/}"$'\t'"$age") ;;
-        refs/remotes/*/HEAD) ;;
+            name=${ref#refs/heads/}
+            [[ -n ${busy[$ref]-} ]] || lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
         refs/remotes/*)
             name=${ref#refs/remotes/}
-            [[ -n ${local_br[${name#*/}]-} ]] && continue
-            lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
+            [[ -n ${local_br[${name#*/}]-} ]] || lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
     esac
+    if [[ $ref == "$cur" ]]; then
+        bases=("$ref"$'\t'"$name (current)"$'\t'"$age" "${bases[@]}")
+    else
+        bases+=("$ref"$'\t'"$name"$'\t'"$age")
+    fi
 done < <(git for-each-ref --sort=-committerdate --format='%(refname)%09%(committerdate:relative)' refs/heads refs/remotes)
-(( ${#lines[@]} )) || die "no branch available (all are checked out in a worktree)"
+if [[ -z $cur ]] && head=$(git rev-parse -q --verify HEAD); then
+    bases=("$head"$'\t'"HEAD (detached)"$'\t'"$(git log -1 --format=%cr HEAD)" "${bases[@]}")
+fi
 
-pick=$(printf '%s\n' "${lines[@]}" | fzf --delimiter '\t' --with-nth 2.. --no-sort \
-    --height '~50%' --reverse --prompt 'branch> ' --header 'Esc cancels') || cancel
+# Ctrl-N prints "new TAB <typed text>"; the header shows the name it would use
+hint='Ctrl-N new branch · Esc cancels'
+pick=$({ (( ${#lines[@]} )) && printf '%s\n' "${lines[@]}"; } | fzf --delimiter '\t' --with-nth 2.. --no-sort \
+    --height '~50%' --reverse --prompt 'branch> ' --header "$hint" \
+    --ghost 'filter, or type a new branch name' --with-shell 'sh -c' \
+    --bind "change:transform-header:[ -z {q} ] && echo '$hint' || printf \"Ctrl-N creates '%s' · Esc cancels\" {q}" \
+    --bind 'ctrl-n:become(printf "new\t%s\n" {q})') || cancel
 ref=${pick%%$'\t'*}
+
+# Why a new branch name can't be used; nothing if it can
+name_problem() {
+    if [[ -z $1 ]]; then
+        echo "no name"
+    elif [[ -n ${local_br[$1]-} ]]; then
+        echo "branch $1 already exists"
+    elif [[ $1 == -* || $1 == HEAD ]] || ! git check-ref-format "refs/heads/$1"; then
+        echo "$1 is not a valid branch name"
+    fi
+}
+
+case $ref in
+    new)
+        branch=${pick#new$'\t'}
+        while problem=$(name_problem "$branch"); [[ -n $problem ]]; do
+            [[ -n $branch ]] && printf ',wt: %s\n' "$problem" >&2
+            IFS= read -r -e -i "$branch" -p 'new branch name: ' branch || cancel
+        done
+        (( ${#bases[@]} )) || die "no commit to start $branch from"
+        base_pick=$(printf '%s\n' "${bases[@]}" | fzf --delimiter '\t' --with-nth 2.. --no-sort \
+            --height '~50%' --reverse --prompt "base for $branch> " --header 'Esc cancels') || cancel
+        base=${base_pick%%$'\t'*}
+        base_name=${base_pick#*$'\t'}
+        base_name=${base_name%%$'\t'*}
+        base_name=${base_name% (current)}
+        [[ $base == refs/* ]] || base_name=$(git rev-parse --short "$base")
+        label="$branch (new, from $base_name)" ;;
+    refs/heads/*)
+        branch=${ref#refs/heads/}
+        label=$branch ;;
+    *)
+        remote_branch=${ref#refs/remotes/}
+        branch=${remote_branch#*/}
+        label=$branch ;;
+esac
 
 # Destination
 repo=${main##*/}
@@ -128,15 +180,12 @@ fi
 
 # Everything answered: create
 trap - INT
-if [[ $ref == refs/heads/* ]]; then
-    branch=${ref#refs/heads/}
-    git -C "$main" worktree add "$dest" "$branch" >&2 || die "git worktree add failed, nothing linked"
-else
-    remote_branch=${ref#refs/remotes/}
-    branch=${remote_branch#*/}
-    git -C "$main" worktree add --track -b "$branch" "$dest" "$remote_branch" >&2 \
-        || die "git worktree add failed, nothing linked"
-fi
+case $ref in
+    # --no-track: a branch started from origin/main must not push to origin/main
+    new) git -C "$main" worktree add --no-track -b "$branch" "$dest" "$base" >&2 ;;
+    refs/heads/*) git -C "$main" worktree add "$dest" "$branch" >&2 ;;
+    *) git -C "$main" worktree add --track -b "$branch" "$dest" "$remote_branch" >&2 ;;
+esac || die "git worktree add failed, nothing linked"
 
 linked=0
 skipped=()
@@ -153,7 +202,7 @@ for p in "${chosen[@]}"; do
 done
 
 {
-    printf '\nworktree  %s\nbranch    %s\nlinked    %d file(s)\n' "$dest" "$branch" "$linked"
+    printf '\nworktree  %s\nbranch    %s\nlinked    %d file(s)\n' "$dest" "$label" "$linked"
     (( ${#skipped[@]} )) && printf 'skipped   %s\n' "${skipped[@]}"
 } >&2
 printf '%s\n' "$dest"
