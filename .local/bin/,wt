@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Make a git worktree for a branch and symlink ignored local files into it.
+# Make a git worktree for a branch and bring ignored local files into it.
 #
 #   ,wt    run it inside a git repo; it asks for everything
 #
@@ -9,9 +9,11 @@
 #   (current branch first). It tracks nothing until your first push -u.
 # Destination: prefilled with the next free <repo>-wt, <repo>-wt2... beside the main
 #   worktree. Created if missing; refused if it's a file or a non-empty dir.
-# Files: git-ignored files matching the globs in ~/.config/kaputi/wt/links, searched
-#   in the main worktree minus the folders in ~/.config/kaputi/wt/skip. All start
-#   checked; links are absolute and point into the main worktree.
+# Files: a table of what ~/.config/kaputi/wt/offer matches (one glob per line):
+#   files git ignores, and folders with nothing tracked inside. Folders named in
+#   ~/.config/kaputi/wt/skip aren't searched unless offer lists them. Rows start
+#   off; Tab cycles off -> link -> copy (folders: off -> copy). Links are absolute,
+#   into the main worktree; copies use cp --reflink=auto (cheap on btrfs).
 # Nothing is created until every question is answered. stdout gets only the new
 # path, so the ,wt zsh function can cd there.
 
@@ -23,7 +25,7 @@ cancel() { die "cancelled, nothing created"; }
 
 if (( $# )); then
     case $1 in
-        -h|--help) sed -n '2,16s/^# \{0,1\}//p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' "$0"; exit 0 ;;
         *) die "unknown argument: $1 ($usage)" ;;
     esac
 fi
@@ -50,8 +52,8 @@ read_list() {
     [[ -f $1 ]] || return 0
     sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^#/d' -e '/^$/d' "$1"
 }
-[[ -f $conf/links ]] || die "no whitelist: create $conf/links (one glob per line, e.g. *.env*)"
-mapfile -t links < <(read_list "$conf/links")
+[[ -f $conf/offer ]] || die "no whitelist: create $conf/offer (one glob per line, e.g. *.env*)"
+mapfile -t offers < <(read_list "$conf/offer")
 mapfile -t skips < <(read_list "$conf/skip")
 
 # Branch: "<ref> TAB <name> TAB <age>", fzf shows name and age. lines: branches
@@ -147,35 +149,102 @@ if [[ -e $dest || -L $dest ]]; then
     [[ -z $(ls -A -- "$dest") ]] || die "$dest is not empty"
 fi
 
-# Files: whitelist matches in the main worktree that git ignores
-cands=()
-if (( ${#links[@]} )); then
-    args=("$main" '(' -name .git)
-    for s in "${skips[@]}"; do args+=(-o -name "$s"); done
-    for w in "${wts[@]:1}"; do [[ $w == "$main"/* ]] && args+=(-o -path "$w"); done
-    args+=(')' -prune -o '(' -type f -o -type l ')' '(')
-    for i in "${!links[@]}"; do
-        (( i )) && args+=(-o)
-        if [[ ${links[i]} == */* ]]; then
-            args+=(-path "$main/${links[i]}")
-        else
-            args+=(-name "${links[i]}")
-        fi
+# Rows: what the offer list matches in the main worktree. Files must be ignored by
+# git; folders must have nothing tracked inside and are never searched into.
+paths=()   # as shown: folders end in /
+kinds=()   # file or dir
+if (( ${#offers[@]} )); then
+    match=()
+    for g in "${offers[@]}"; do
+        g=${g%/}
+        (( ${#match[@]} )) && match+=(-o)
+        if [[ $g == */* ]]; then match+=(-path "$main/$g"); else match+=(-name "$g"); fi
     done
-    args+=(')' -printf '%P\n')
-    mapfile -t cands < <(find "${args[@]}" 2> /dev/null | git -C "$main" check-ignore --stdin | sort)
+    nested=(-name .git)
+    for w in "${wts[@]:1}"; do [[ $w == "$main"/* ]] && nested+=(-o -path "$w"); done
+    skip=(-false)
+    for s in "${skips[@]}"; do skip+=(-o -name "$s"); done
+    # The folder test runs before skip, so a listed folder shows even when skipped
+    files=()
+    while IFS=$'\t' read -r kind p; do
+        if [[ $kind == file ]]; then
+            files+=("$p")
+        elif [[ -z $(git -C "$main" ls-files -- ":(literal)$p" | head -n 1) ]]; then
+            paths+=("$p/")
+            kinds+=(dir)
+        fi
+    done < <(find "$main" -mindepth 1 '(' "${nested[@]}" ')' -prune \
+        -o -type d '(' "${match[@]}" ')' -printf 'dir\t%P\n' -prune \
+        -o '(' "${skip[@]}" ')' -prune \
+        -o '(' -type f -o -type l ')' '(' "${match[@]}" ')' -printf 'file\t%P\n' 2> /dev/null)
+    if (( ${#files[@]} )); then
+        while IFS= read -r p; do
+            paths+=("$p")
+            kinds+=(file)
+        done < <(printf '%s\n' "${files[@]}" | git -C "$main" check-ignore --stdin)
+    fi
 fi
 
-chosen=()
-if (( ${#cands[@]} )); then
-    # Enter with nothing checked must link nothing; plain fzf would return the focused line
-    picked=$(printf '%s\n' "${cands[@]}" | fzf --multi --height '~50%' --reverse --prompt 'link> ' \
-        --header 'Tab toggles · type to filter · Enter confirms · Esc cancels' \
-        --bind 'load:select-all' \
-        --bind 'enter:become(if [ "$FZF_SELECT_COUNT" -gt 0 ]; then cat {+f}; fi)') || cancel
-    [[ -n $picked ]] && mapfile -t chosen <<< "$picked"
+# Sort rows by path, keeping kinds in step
+if (( ${#paths[@]} )); then
+    mapfile -t order < <(for i in "${!paths[@]}"; do printf '%s\t%s\n' "${paths[i]}" "$i"; done \
+        | LC_ALL=C sort -t $'\t' -k1,1 | cut -f2)
+    sorted_paths=() sorted_kinds=()
+    for i in "${order[@]}"; do
+        sorted_paths+=("${paths[i]}")
+        sorted_kinds+=("${kinds[i]}")
+    done
+    paths=("${sorted_paths[@]}") kinds=("${sorted_kinds[@]}")
+fi
+state=()   # per row: 0 off, 1 link, 2 copy
+for i in "${!paths[@]}"; do state[i]=0; done
+
+# The link/copy table, drawn on stderr. Files cycle off -> link -> copy, folders
+# off -> copy. Returns 1 on Esc.
+table() {
+    local n=${#paths[@]} cur=0 i key rest mark pointer
+    local where=$dest
+    [[ $where == "$HOME"/* ]] && where="~${where#"$HOME"}"
+    printf '\nfiles for %s\n↑/↓ move · Tab off→link→copy · Enter ok · Esc cancel\n\n' "$where" >&2
+    trap 'printf "\e[?25h" >&2' EXIT
+    printf '\e[?25l' >&2
+    while :; do
+        for i in "${!paths[@]}"; do
+            case ${state[i]} in
+                1) mark=$'\e[36mlink\e[0m' ;;
+                2) mark=$'\e[33mcopy\e[0m' ;;
+                *) mark='    ' ;;
+            esac
+            pointer=' '
+            (( i == cur )) && pointer='>'
+            printf '\r\e[2K%s %s  %s\n' "$pointer" "$mark" "${paths[i]}" >&2
+        done
+        IFS= read -rsn1 -d '' key < /dev/tty || return 1
+        if [[ $key == $'\e' ]]; then
+            # Arrow keys arrive as Esc [ A; a lone Esc has nothing after it
+            IFS= read -rsn2 -t 0.05 -d '' rest < /dev/tty
+            key+=$rest
+        fi
+        case $key in
+            $'\e[A' | $'\eOA' | k) (( cur > 0 )) && cur=$((cur - 1)) ;;
+            $'\e[B' | $'\eOB' | j) (( cur < n - 1 )) && cur=$((cur + 1)) ;;
+            $'\t')
+                if [[ ${kinds[cur]} == dir ]]; then
+                    state[cur]=$(( state[cur] ? 0 : 2 ))
+                else
+                    state[cur]=$(( (state[cur] + 1) % 3 ))
+                fi ;;
+            $'\n' | $'\r') printf '\e[?25h' >&2; return 0 ;;
+            $'\e') return 1 ;;
+        esac
+        printf '\e[%dA' "$n" >&2
+    done
+}
+
+if (( ${#paths[@]} )); then
+    table || cancel
 else
-    echo "nothing to link" >&2
+    echo "nothing to link or copy" >&2
 fi
 
 # Everything answered: create
@@ -188,21 +257,31 @@ case $ref in
 esac || die "git worktree add failed, nothing linked"
 
 linked=0
+copied=0
 skipped=()
-for p in "${chosen[@]}"; do
+for i in "${!paths[@]}"; do
+    (( state[i] )) || continue
+    p=${paths[i]%/}
     if [[ -e $dest/$p || -L $dest/$p ]]; then
-        printf ',wt: %s already exists in the worktree (tracked on %s?), not linked\n' "$p" "$branch" >&2
-        skipped+=("$p")
-    elif mkdir -p -- "$(dirname -- "$dest/$p")" && ln -s -- "$main/$p" "$dest/$p"; then
-        linked=$((linked + 1))
-    else
-        printf ',wt: could not link %s\n' "$p" >&2
-        skipped+=("$p")
+        printf ',wt: %s already exists in the worktree (tracked on %s?), skipped\n' "${paths[i]}" "$branch" >&2
+        skipped+=("${paths[i]}")
+        continue
     fi
+    if (( state[i] == 1 )); then
+        mkdir -p -- "$(dirname -- "$dest/$p")" && ln -s -- "$main/$p" "$dest/$p" \
+            && { linked=$((linked + 1)); continue; }
+    else
+        [[ ${kinds[i]} == dir ]] && printf 'copying %s…\n' "${paths[i]}" >&2
+        mkdir -p -- "$(dirname -- "$dest/$p")" && cp -a --reflink=auto -- "$main/$p" "$dest/$p" \
+            && { copied=$((copied + 1)); continue; }
+    fi
+    printf ',wt: could not bring in %s\n' "${paths[i]}" >&2
+    skipped+=("${paths[i]}")
 done
 
 {
     printf '\nworktree  %s\nbranch    %s\nlinked    %d file(s)\n' "$dest" "$label" "$linked"
+    (( copied )) && printf 'copied    %d item(s)\n' "$copied"
     (( ${#skipped[@]} )) && printf 'skipped   %s\n' "${skipped[@]}"
 } >&2
 printf '%s\n' "$dest"
