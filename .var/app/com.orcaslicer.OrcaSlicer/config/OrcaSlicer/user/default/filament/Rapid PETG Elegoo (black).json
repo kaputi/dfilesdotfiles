@@ -65,6 +65,9 @@
 	"pressure_advance": [
 		"0.055"
 	],
+	"support_material_interface_fan_speed": [
+		"100"
+	],
 	"textured_plate_temp": [
 		"70"
 	],

@@ -38,5 +38,8 @@
 	"pressure_advance": [
 		"0.045"
 	],
+	"support_material_interface_fan_speed": [
+		"100"
+	],
 	"version": "2.4.0.3"
 }
