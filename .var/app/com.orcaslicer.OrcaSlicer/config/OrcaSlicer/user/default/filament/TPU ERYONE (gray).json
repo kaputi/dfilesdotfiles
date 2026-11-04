@@ -1,0 +1,42 @@
+{
+	"compatible_printers": [
+		"MyKlipper 0.4 nozzle"
+	],
+	"default_filament_colour": [
+		"#7A7A7A"
+	],
+	"filament_cost": [
+		"36"
+	],
+	"filament_density": [
+		"1.21"
+	],
+	"filament_extruder_variant": [
+		"Direct Drive Standard"
+	],
+	"filament_settings_id": [
+		"TPU ERYONE (gray)"
+	],
+	"filament_type": [
+		"TPU"
+	],
+	"filament_vendor": [
+		"ERYONE"
+	],
+	"from": "User",
+	"inherits": "Generic TPU @System",
+	"name": "TPU ERYONE (gray)",
+	"nozzle_temperature": [
+		"210"
+	],
+	"nozzle_temperature_initial_layer": [
+		"210"
+	],
+	"nozzle_temperature_range_high": [
+		"220"
+	],
+	"nozzle_temperature_range_low": [
+		"200"
+	],
+	"version": "2.4.0.3"
+}
