@@ -53,10 +53,12 @@ M.setup = function(config)
       tab_active = {
         'index',
         { 'zoomed', padding = 0 },
+        { 'cwd', max_length = 20, padding = { left = 0, right = 1 } },
         { 'process', padding = { left = 0, right = 1 } },
       },
       tab_inactive = {
         'index',
+        { 'cwd', max_length = 20, padding = { left = 0, right = 1 } },
         { 'process', padding = { left = 0, right = 1 } },
       },
       tabline_x = {},
