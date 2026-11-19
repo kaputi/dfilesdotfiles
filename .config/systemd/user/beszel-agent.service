@@ -13,6 +13,9 @@ EnvironmentFile=%h/.local/share/beszel-agent/agent.env
 Environment=DATA_DIR=%h/.local/share/beszel-agent/data
 # Connects out to the hub on LabPi-1 over WebSocket; no SSH listener needed.
 Environment=DISABLE_SSH=true
+# SMART: the agent runs the first "smartctl" on its PATH; ours is a stand-in
+# that asks the root-owned read-only gate (/usr/local/bin/smartctl-ro) via sudo.
+Environment=PATH=%h/.local/share/beszel-agent/bin:/usr/local/bin:/usr/bin:/bin
 Restart=on-failure
 RestartSec=10
 
