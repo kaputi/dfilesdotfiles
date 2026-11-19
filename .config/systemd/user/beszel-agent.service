@@ -1,0 +1,20 @@
+# Beszel agent for the tower (langoliers), as a systemd *user* service.
+# The user is in the docker group, so it reads arrStack's container stats
+# without a new privileged account. Linger is on: starts at boot, no login.
+# Binary + secrets in ~/.local/share/beszel-agent/ (not tracked by dfiles);
+# this unit in ~/.config/systemd/user/ (tracked by dfiles: no secrets here).
+[Unit]
+Description=Beszel agent (tower)
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/share/beszel-agent/beszel-agent
+EnvironmentFile=%h/.local/share/beszel-agent/agent.env
+Environment=DATA_DIR=%h/.local/share/beszel-agent/data
+# Connects out to the hub on LabPi-1 over WebSocket; no SSH listener needed.
+Environment=DISABLE_SSH=true
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
