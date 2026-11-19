@@ -1,6 +1,8 @@
 # Beszel agent for the tower (langoliers), as a systemd *user* service.
-# The user is in the docker group, so it reads arrStack's container stats
-# without a new privileged account. Linger is on: starts at boot, no login.
+# The user is in the docker group, so it reads the system-wide Docker's
+# container stats. arrStack's rootless Docker has its own agent (tower-arr,
+# run by arrstack; ~/code/arrStack/beszel/). Linger is on: starts at boot,
+# no login.
 # Binary + secrets in ~/.local/share/beszel-agent/ (not tracked by dfiles);
 # this unit in ~/.config/systemd/user/ (tracked by dfiles: no secrets here).
 [Unit]
