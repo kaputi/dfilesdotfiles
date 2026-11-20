@@ -1,0 +1,293 @@
+#!/usr/bin/env -S deno run -A
+/**
+ * Show which sites one device looked up, from the router's DNS query log.
+ *
+ * The OPNsense router's Unbound keeps every DNS lookup for 7 days. This reads that log
+ * over SSH (read-only), for one device and one time range, and prints the sites grouped
+ * by domain, most looked-up first. Blocked lookups are listed by exact name, ready to
+ * paste into the router's allowlist. Devices that ask another DNS server never show up.
+ *
+ * Usage: ,dnslog [device] [range]
+ *   device  an IP, or a piece of a device name (pixel, tower); asked if left out
+ *   range   today (default), yesterday, 3h, 2d; asked if left out
+ *
+ * Design: ~/.claude/plans/2026-11-20-dnslog-design.md
+ */
+import { getDomain } from "npm:tldts";
+
+const ROUTER = "root@192.168.1.254";
+// The program behind Reporting > Unbound DNS. Called directly because
+// `configctl unbound qstats query` stops at 500 rows.
+const STATS = "/usr/local/opnsense/scripts/unbound/stats.py";
+const KEEP_DAYS = 7; // hard-coded in the router's logger.py
+const NETWORKS: Record<string, string> = { "1": "Home", "20": "TV", "30": "IoT", "40": "Guest", "50": "Lab" };
+const NET_ORDER = ["Home", "TV", "Lab", "IoT", "Guest", "other"];
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+// Printed on the router: one "kind<TAB>ip<TAB>name" line per lease, reservation and
+// Unbound host override. Only these lines leave the router, not the rest of its config.
+const DEVICE_SCRIPT = `
+awk 'NF>=4 {print "lease\\t" $3 "\\t" $4}' /var/db/dnsmasq.leases
+awk '
+function val(tag) { sub(".*<" tag ">", ""); sub("</" tag ">.*", ""); return $0 }
+/<dnsmasq /      { s = "d" }
+/<\\/dnsmasq>/    { s = "" }
+/<unboundplus /  { s = "u" }
+/<\\/unboundplus>/{ s = "" }
+s == "d" && /<hosts uuid=/ { h = ""; ip = "" }
+s == "d" && /<host>/       { h = val("host") }
+s == "d" && /<ip>/         { ip = val("ip") }
+s == "d" && /<\\/hosts>/    { if (ip != "") print "resv\\t" ip "\\t" h }
+s == "u" && /<host uuid=/  { h = ""; d = ""; ip = "" }
+s == "u" && /<hostname>/   { h = val("hostname") }
+s == "u" && /<domain>/     { d = val("domain") }
+s == "u" && /<server>/     { ip = val("server") }
+s == "u" && /<\\/host>/     { if (ip != "") print "name\\t" ip "\\t" h "." d }
+' /conf/config.xml
+`;
+
+type Device = { ip: string; name: string; net: string };
+type Range = { start: number; end: number; label: string; phrase: string; warn?: string };
+type Row = { domain?: string; action?: string };
+
+function die(msg: string): never {
+  console.error(msg);
+  Deno.exit(1);
+}
+
+/** Run a sh script on the router (its login shell is csh, so the script goes to sh on stdin). */
+async function ssh(script: string): Promise<{ code: number; out: string; err: string }> {
+  const child = new Deno.Command("ssh", {
+    args: ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", ROUTER, "sh", "-s"],
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  }).spawn();
+  const writer = child.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(script));
+  await writer.close();
+  const { code, stdout, stderr } = await child.output();
+  const dec = new TextDecoder();
+  return { code, out: dec.decode(stdout), err: dec.decode(stderr) };
+}
+
+function checkSsh(code: number) {
+  if (code === 255) die(`Can't reach the router over SSH (${ROUTER}).`);
+}
+
+function network(ip: string): string {
+  const m = ip.match(IPV4);
+  return (m && m[1] === "192" && m[2] === "168" && NETWORKS[m[3]]) || "other";
+}
+
+function ipValue(ip: string): number {
+  return ip.split(".").reduce((acc, o) => acc * 256 + Number(o), 0);
+}
+
+/** 192.168.1.200 → .1.200; other addresses stay whole. */
+function shortIp(ip: string): string {
+  return ip.startsWith("192.168.") ? ip.slice(7) : ip;
+}
+
+/** Devices from the router's leases, reservations and .home.arpa names, one per IP. */
+async function loadDevices(): Promise<Device[]> {
+  const { code, out, err } = await ssh(DEVICE_SCRIPT);
+  checkSsh(code);
+  if (code !== 0) die(err.trim() || `Reading the router's device list failed (exit ${code}).`);
+
+  // Lower rank wins: .home.arpa name, reservation, lease hostname, any other override name.
+  const best = new Map<string, { rank: number; name: string }>();
+  for (const line of out.split("\n")) {
+    const [kind, ip, raw] = line.split("\t");
+    if (!ip || !IPV4.test(ip) || !raw) continue;
+    let rank: number;
+    let name = raw;
+    if (kind === "name" && raw.endsWith(".home.arpa")) {
+      rank = 0;
+      name = raw.slice(0, -".home.arpa".length);
+    } else if (kind === "resv") rank = 1;
+    else if (kind === "lease") {
+      if (raw === "*") continue;
+      rank = 2;
+    } else if (kind === "name") rank = 3;
+    else continue;
+    const cur = best.get(ip);
+    if (!cur || rank < cur.rank) best.set(ip, { rank, name });
+  }
+  return [...best]
+    .map(([ip, { name }]) => ({ ip, name, net: network(ip) }))
+    .sort((a, b) => NET_ORDER.indexOf(a.net) - NET_ORDER.indexOf(b.net) || ipValue(a.ip) - ipValue(b.ip));
+}
+
+function printMenu(list: Device[]) {
+  const nameW = Math.min(16, Math.max(...list.map((d) => d.name.length)));
+  const ipW = Math.max(...list.map((d) => shortIp(d.ip).length));
+  const numW = String(list.length).length;
+  list.forEach((d, i) => {
+    console.log(`${String(i + 1).padStart(numW + 1)}  ${d.name.padEnd(nameW)}  ${shortIp(d.ip).padEnd(ipW)}  ${d.net}`);
+  });
+}
+
+function ask(message: string): string {
+  if (!Deno.stdin.isTerminal()) die("Not in a terminal: give the device and range as arguments, e.g. ,dnslog pixel today");
+  const answer = prompt(message);
+  if (answer === null) die("Cancelled.");
+  return answer.trim();
+}
+
+function byIp(devices: Device[], ip: string): Device {
+  return devices.find((d) => d.ip === ip) ?? { ip, name: ip, net: network(ip) };
+}
+
+/** Menu + prompt until the answer is a menu number or an IP. */
+function chooseFrom(list: Device[], devices: Device[]): Device {
+  printMenu(list);
+  for (;;) {
+    const a = ask("Device (number or IP):");
+    if (/^\d+$/.test(a) && Number(a) >= 1 && Number(a) <= list.length) return list[Number(a) - 1];
+    if (IPV4.test(a)) return byIp(devices, a);
+    console.log(`Not a number from 1 to ${list.length}, or an IP.`);
+  }
+}
+
+function pickDevice(devices: Device[], arg?: string): Device {
+  if (arg === undefined) return chooseFrom(devices, devices);
+  if (IPV4.test(arg)) return byIp(devices, arg);
+  const piece = arg.toLowerCase();
+  const matches = devices.filter((d) => d.name.toLowerCase().includes(piece));
+  if (matches.length === 0) die(`No device matches "${arg}". Run ,dnslog without arguments to see the list.`);
+  if (matches.length === 1) return matches[0];
+  console.log(`"${arg}" matches ${matches.length} devices:`);
+  return chooseFrom(matches, devices);
+}
+
+function hhmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** today, yesterday, Nh, Nd → closed range in epoch seconds; null if not understood. */
+function parseRange(text: string, now = new Date()): Range | null {
+  const t = text.trim().toLowerCase();
+  const nowS = Math.floor(now.getTime() / 1000);
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const midS = Math.floor(midnight.getTime() / 1000);
+
+  if (t === "" || t === "today") {
+    return { start: midS, end: nowS, label: `today 00:00–${hhmm(now)}`, phrase: "today" };
+  }
+  if (t === "yesterday") {
+    const y = new Date(midnight);
+    y.setDate(y.getDate() - 1);
+    return { start: Math.floor(y.getTime() / 1000), end: midS - 1, label: "yesterday", phrase: "yesterday" };
+  }
+  const m = t.match(/^(\d+)\s*([hd])$/);
+  if (!m || Number(m[1]) < 1) return null;
+  const n = Number(m[1]);
+  if (m[2] === "h") {
+    return { start: nowS - n * 3600, end: nowS, label: `last ${n} h`, phrase: `in the last ${n} h` };
+  }
+  const days = n === 1 ? "day" : "days";
+  return {
+    start: nowS - n * 86400,
+    end: nowS,
+    label: `last ${n} ${days}`,
+    phrase: `in the last ${n} ${days}`,
+    warn: n > KEEP_DAYS ? `The router keeps ${KEEP_DAYS} days; showing what it has.` : undefined,
+  };
+}
+
+const RANGE_HELP = "Use today, yesterday, 3h or 2d.";
+
+/** Every lookup from one IP in the range, uncapped. */
+async function fetchRows(ip: string, r: Range): Promise<Row[]> {
+  // The router's query is strict on both ends (time > start AND time < end).
+  const cmd = `${STATS} details --client ${ip} --start ${r.start - 1} --end ${r.end + 1} --limit 1000000`;
+  const { code, out, err } = await ssh(cmd);
+  checkSsh(code);
+  if (code === 127 || /no such file|not found/i.test(err)) {
+    die(
+      "The router's query program has moved (OPNsense update?).\n" +
+        "Fallback: configctl unbound qstats query <ip> <start> <end>, 500 rows per call, paged.",
+    );
+  }
+  if (code !== 0) die(err.trim() || `Router query failed (exit ${code}).`);
+  try {
+    const data = JSON.parse(out);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    die(`Unexpected answer from the router:\n${(err || out).trim().slice(0, 500)}`);
+  }
+}
+
+/** Site for a looked-up name: its registrable domain; local and dotless names stay whole. */
+function site(name: string): string {
+  if (!name.includes(".") || name.endsWith(".home.arpa")) return name;
+  return getDomain(name, { allowPrivateDomains: false }) ?? name;
+}
+
+function countSorted(m: Map<string, number>): [string, number][] {
+  return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function summarize(rows: Row[]) {
+  const sites = new Map<string, number>();
+  const blocked = new Map<string, number>();
+  for (const r of rows) {
+    const name = String(r.domain ?? "").toLowerCase().replace(/\.$/, "") || ".";
+    const target = r.action === "Block" || r.action === "Drop" ? blocked : sites;
+    const key = target === blocked ? name : site(name);
+    target.set(key, (target.get(key) ?? 0) + 1);
+  }
+  return { sites: countSorted(sites), blocked: countSorted(blocked) };
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+function report(dev: Device, r: Range, rows: Row[]) {
+  const who = dev.name === dev.ip ? dev.ip : `${dev.name} (${shortIp(dev.ip)})`;
+  if (rows.length === 0) {
+    console.log(`No lookups from ${who} ${r.phrase}: asleep, idle, or using another DNS server.`);
+    return;
+  }
+  const { sites, blocked } = summarize(rows);
+  const nBlocked = blocked.reduce((s, [, n]) => s + n, 0);
+  console.log(`${who} · ${r.label}`);
+  console.log(`${fmt(rows.length)} lookups · ${fmt(nBlocked)} blocked`);
+  console.log();
+  for (const [name, n] of sites) console.log(`${fmt(n).padStart(5)}  ${name}`);
+  if (blocked.length) {
+    console.log();
+    for (const [name, n] of blocked) console.log(`✕ ${fmt(n).padStart(3)}  ${name}`);
+  }
+}
+
+async function main() {
+  const args = Deno.args;
+  if (args.length > 2 || args[0] === "-h" || args[0] === "--help") {
+    console.log("Usage: ,dnslog [device] [range]\n  device  an IP or a piece of a name (pixel, tower)\n  range   today (default), yesterday, 3h, 2d");
+    Deno.exit(args.length > 2 ? 1 : 0);
+  }
+  const [devArg, rangeArg] = args;
+
+  // Check a range argument before any SSH, so a typo fails fast.
+  let range: Range | null = null;
+  if (rangeArg !== undefined) {
+    range = parseRange(rangeArg);
+    if (!range) die(`Unknown range "${rangeArg}". ${RANGE_HELP}`);
+  }
+
+  const dev = pickDevice(await loadDevices(), devArg);
+
+  while (!range) {
+    range = parseRange(ask("Range [today]:"));
+    if (!range) console.log(RANGE_HELP);
+  }
+  if (range.warn) console.log(range.warn);
+
+  report(dev, range, await fetchRows(dev.ip, range));
+}
+
+if (import.meta.main) await main();
