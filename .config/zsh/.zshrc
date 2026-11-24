@@ -257,6 +257,10 @@ gdf() {
     return
   }
   local d
+  # Ctrl-C while ,wt runs install commands: ,wt stops them and still prints
+  # the path; without this trap zsh would drop the cd
+  setopt localtraps
+  trap : INT
   d=$(command ,wt) && [[ -n $d ]] && cd -- "$d"
 }
 

@@ -17,6 +17,13 @@
 #   ~/.config/kaputi/wt/skip aren't searched unless offer lists them. Rows start
 #   off; Tab cycles off -> link -> copy (folders: off -> copy). Links are absolute,
 #   into the main worktree; copies use cp --reflink=auto (cheap on btrfs).
+# Commands: a table of what ~/.config/kaputi/wt/run suggests, one rule per line:
+#   a file glob (matched like offer's), then a command. A rule fires for each
+#   match among the branch's tracked files (a new branch: its base's) and the
+#   files ticked above, outside skip folders. Rows start on; Tab toggles. Once
+#   the worktree is made they run with bash in the matched file's folder, in
+#   rule order. A failure doesn't stop the rest; Ctrl-C does. No run file, no
+#   table.
 # Nothing is created until every question is answered. stdout gets only the new
 # path, so the ,wt zsh function can cd there.
 
@@ -111,6 +118,7 @@ read_list() {
 [[ -f $conf/offer ]] || die "no whitelist: create $conf/offer (one glob per line, e.g. *.env*)"
 mapfile -t offers < <(read_list "$conf/offer")
 mapfile -t skips < <(read_list "$conf/skip")
+mapfile -t rules < <(read_list "$conf/run")
 
 # Branch. With a remote, the list opens under a status line while fzf runs the
 # fetch in the background; when it ends the list is swapped in place, with the
@@ -241,28 +249,34 @@ if (( ${#paths[@]} )); then
     done
     paths=("${sorted_paths[@]}") kinds=("${sorted_kinds[@]}")
 fi
-state=()   # per row: 0 off, 1 link, 2 copy
-for i in "${!paths[@]}"; do state[i]=0; done
+state=()    # per row: 0 off, 1 link, 2 copy
+cycles=()   # the states Tab steps through: files off -> link -> copy, folders off -> copy
+for i in "${!paths[@]}"; do
+    state[i]=0
+    if [[ ${kinds[i]} == dir ]]; then cycles[i]=02; else cycles[i]=012; fi
+done
 
-# The link/copy table, drawn on stderr. Files cycle off -> link -> copy, folders
-# off -> copy. Returns 1 on Esc.
+# A table drawn on stderr. Row i shows LABELS[i] and a mark for STATES[i]
+# (0 off, 1 link, 2 copy, 3 run); Tab moves it to the next state in CYCLES[i].
+#   table TITLE TAB-HINT LABELS CYCLES STATES   (the last three: array names)
+# Returns 1 on Esc.
 table() {
-    local n=${#paths[@]} cur=0 i key rest mark pointer
-    local where=$dest
-    [[ $where == "$HOME"/* ]] && where="~${where#"$HOME"}"
-    printf '\nfiles for %s\n↑/↓ move · Tab off→link→copy · Enter ok · Esc cancel\n\n' "$where" >&2
+    local -n t_labels=$3 t_cycles=$4 t_states=$5
+    local n=${#t_labels[@]} cur=0 i key rest mark pointer
+    printf '\n%s\n↑/↓ move · Tab %s · Enter ok · Esc cancel\n\n' "$1" "$2" >&2
     trap 'printf "\e[?25h" >&2' EXIT
     printf '\e[?25l' >&2
     while :; do
-        for i in "${!paths[@]}"; do
-            case ${state[i]} in
+        for i in "${!t_labels[@]}"; do
+            case ${t_states[i]} in
                 1) mark=$'\e[36mlink\e[0m' ;;
                 2) mark=$'\e[33mcopy\e[0m' ;;
+                3) mark=$'\e[32mrun \e[0m' ;;
                 *) mark='    ' ;;
             esac
             pointer=' '
             (( i == cur )) && pointer='>'
-            printf '\r\e[2K%s %s  %s\n' "$pointer" "$mark" "${paths[i]}" >&2
+            printf '\r\e[2K%s %s  %s\n' "$pointer" "$mark" "${t_labels[i]}" >&2
         done
         IFS= read -rsn1 -d '' key < /dev/tty || return 1
         if [[ $key == $'\e' ]]; then
@@ -274,11 +288,10 @@ table() {
             $'\e[A' | $'\eOA' | k) (( cur > 0 )) && cur=$((cur - 1)) ;;
             $'\e[B' | $'\eOB' | j) (( cur < n - 1 )) && cur=$((cur + 1)) ;;
             $'\t')
-                if [[ ${kinds[cur]} == dir ]]; then
-                    state[cur]=$(( state[cur] ? 0 : 2 ))
-                else
-                    state[cur]=$(( (state[cur] + 1) % 3 ))
-                fi ;;
+                # What follows the current state in the cycle, else back to its start
+                rest=${t_cycles[cur]#*"${t_states[cur]}"}
+                t_states[cur]=${rest:0:1}
+                [[ -n ${t_states[cur]} ]] || t_states[cur]=${t_cycles[cur]:0:1} ;;
             $'\n' | $'\r') printf '\e[?25h' >&2; return 0 ;;
             $'\e') return 1 ;;
         esac
@@ -286,10 +299,63 @@ table() {
     done
 }
 
+where=$dest
+[[ $where == "$HOME"/* ]] && where="~${where#"$HOME"}"
 if (( ${#paths[@]} )); then
-    table || cancel
+    table "files for $where" 'off→link→copy' paths cycles state || cancel
 else
     echo "nothing to link or copy" >&2
+fi
+
+# Commands: each run rule against the branch's tracked files (a new branch: its
+# base's) and the files ticked above. A match is a row: the command, run in the
+# matched file's folder. Same command in the same folder: one row.
+cmds=()       # command
+cmd_dirs=()   # folder from the worktree root, empty for the root itself
+case $ref in new) tree=$base ;; *) tree=$ref ;; esac
+empty_tree=$(git hash-object -t tree /dev/null)
+not_skipped=()
+for s in "${skips[@]}"; do not_skipped+=(":(exclude,glob)**/$s/**"); done
+declare -A seen
+for r in "${rules[@]}"; do
+    g=${r%%[[:space:]]*}
+    cmd=${r#"$g"}
+    cmd=${cmd#"${cmd%%[![:space:]]*}"}
+    [[ -n $cmd ]] || continue
+    if [[ $g == */* ]]; then spec=":(glob)$g"; else spec=":(glob)**/$g"; fi
+    found=()
+    # diff-tree against the empty tree lists a commit's files; unlike ls-tree,
+    # it takes glob pathspecs
+    while IFS= read -r -d '' p; do
+        found+=("$p")
+    done < <(git -C "$main" diff-tree -r --name-only -z "$empty_tree" "$tree" -- "$spec" "${not_skipped[@]}")
+    for i in "${!paths[@]}"; do
+        (( state[i] )) || continue
+        p=${paths[i]%/}
+        if [[ $g == */* ]]; then [[ $p == $g ]]; else [[ ${p##*/} == $g ]]; fi && found+=("$p")
+    done
+    for p in "${found[@]}"; do
+        dir=
+        [[ $p == */* ]] && dir=${p%/*}
+        [[ -n ${seen[$dir$'\t'$cmd]-} ]] && continue
+        seen[$dir$'\t'$cmd]=1
+        cmds+=("$cmd")
+        cmd_dirs+=("$dir")
+    done
+done
+
+cmd_labels=() cmd_cycles=() cmd_state=()
+if (( ${#cmds[@]} )); then
+    w=0
+    for c in "${cmds[@]}"; do (( ${#c} > w )) && w=${#c}; done
+    for i in "${!cmds[@]}"; do
+        printf -v 'cmd_labels[i]' '%-*s  %s' "$w" "${cmds[i]}" "${cmd_dirs[i]:+${cmd_dirs[i]}/}"
+        cmd_cycles[i]=30
+        cmd_state[i]=3
+    done
+    table "commands for $where" 'on/off' cmd_labels cmd_cycles cmd_state || cancel
+elif (( ${#rules[@]} )); then
+    echo "no commands to run" >&2
 fi
 
 # Everything answered: create
@@ -324,9 +390,36 @@ for i in "${!paths[@]}"; do
     skipped+=("${paths[i]}")
 done
 
+# Ctrl-C goes to the whole foreground group: it ends the running command, and
+# the trap keeps ,wt alive to skip the rest and still print the path. The ,wt
+# zsh function traps INT too, or zsh would drop its cd.
+ran=0
+failed=()
+not_run=0
+stopped=
+for i in "${!cmds[@]}"; do
+    (( cmd_state[i] )) || continue
+    if [[ -n $stopped ]]; then
+        not_run=$((not_run + 1))
+        continue
+    fi
+    what=${cmds[i]}${cmd_dirs[i]:+ (${cmd_dirs[i]}/)}
+    printf '\n▸ %s\n' "$what" >&2
+    trap 'stopped=1' INT
+    if (cd -- "$dest/${cmd_dirs[i]}" && exec bash -c "${cmds[i]}") >&2; then
+        ran=$((ran + 1))
+    else
+        failed+=("$what")
+    fi
+    trap - INT
+done
+
 {
     printf '\nworktree  %s\nbranch    %s\nlinked    %d file(s)\n' "$dest" "$label" "$linked"
     (( copied )) && printf 'copied    %d item(s)\n' "$copied"
     (( ${#skipped[@]} )) && printf 'skipped   %s\n' "${skipped[@]}"
+    (( ran )) && printf 'ran       %d command(s)\n' "$ran"
+    (( ${#failed[@]} )) && printf 'failed    %s\n' "${failed[@]}"
+    [[ -n $stopped ]] && printf 'stopped   Ctrl-C, %d command(s) not run\n' "$not_run"
 } >&2
 printf '%s\n' "$dest"
