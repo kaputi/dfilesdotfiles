@@ -3,10 +3,11 @@
 #
 #   ,wt    run it inside a git repo; it asks for everything
 #
-# Branch: local and remote branches, newest first. Ones already checked out in a
-#   worktree are hidden; a remote branch gets a local tracking branch. Ctrl-N
-#   makes a new branch named after the typed text instead, from a base you pick
-#   (current branch first). It tracks nothing until your first push -u.
+# Branch: local and remote branches, newest first. Remotes are fetched first
+#   (Ctrl-C skips the fetch). Ones already checked out in a worktree are hidden;
+#   a remote branch gets a local tracking branch. Ctrl-N makes a new branch named
+#   after the typed text instead, from a base you pick (current branch first).
+#   It tracks nothing until your first push -u.
 # Destination: prefilled with the next free <repo>-wt, <repo>-wt2... beside the main
 #   worktree. Created if missing; refused if it's a file or a non-empty dir.
 # Files: a table of what ~/.config/kaputi/wt/offer matches (one glob per line):
@@ -55,6 +56,16 @@ read_list() {
 [[ -f $conf/offer ]] || die "no whitelist: create $conf/offer (one glob per line, e.g. *.env*)"
 mapfile -t offers < <(read_list "$conf/offer")
 mapfile -t skips < <(read_list "$conf/skip")
+
+# Remote branches are only as fresh as the last fetch. Ctrl-C skips the
+# fetch; a failed one (offline) only warns.
+if [[ -n $(git remote) ]]; then
+    printf 'fetching remotes… (Ctrl-C skips)\n' >&2
+    trap : INT
+    git fetch --all --quiet >&2 \
+        || printf ',wt: fetch did not finish, branch list may be out of date\n' >&2
+    trap cancel INT
+fi
 
 # Branch: "<ref> TAB <name> TAB <age>", fzf shows name and age. lines: branches
 # free to check out. bases: everything a new branch can start from, current first.
