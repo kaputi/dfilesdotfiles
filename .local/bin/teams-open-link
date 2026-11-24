@@ -1,0 +1,6 @@
+#!/bin/bash
+# URL handler for Teams (flatpak): open links in Brave's CMR profile.
+# Runs inside the Teams sandbox, so it needs the
+# --talk-name=org.freedesktop.Flatpak override to reach the host.
+exec flatpak-spawn --host flatpak run com.brave.Browser \
+  --profile-directory="Profile 1" "$@"
