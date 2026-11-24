@@ -3,11 +3,13 @@
 #
 #   ,wt    run it inside a git repo; it asks for everything
 #
-# Branch: local and remote branches, newest first. Remotes are fetched first
-#   (Ctrl-C skips the fetch). Ones already checked out in a worktree are hidden;
-#   a remote branch gets a local tracking branch. Ctrl-N makes a new branch named
-#   after the typed text instead, from a base you pick (current branch first).
-#   It tracks nothing until your first push -u.
+# Branch: local and remote branches, newest first. The list opens with what is
+#   already known while remotes are fetched in the background (never asks for a
+#   password); it refreshes when the fetch ends, keeping what you typed. Ones
+#   already checked out in a worktree are hidden; a remote branch gets a local
+#   tracking branch. Ctrl-N makes a new branch named after the typed text
+#   instead, from a base you pick (current branch first). It tracks nothing
+#   until your first push -u.
 # Destination: prefilled with the next free <repo>-wt, <repo>-wt2... beside the main
 #   worktree. Created if missing; refused if it's a file or a non-empty dir.
 # Files: a table of what ~/.config/kaputi/wt/offer matches (one glob per line):
@@ -24,13 +26,26 @@ usage="usage: ,wt (no arguments, run it inside a git repo)"
 die() { printf ',wt: %s\n' "$*" >&2; exit 1; }
 cancel() { die "cancelled, nothing created"; }
 
+mode=
 if (( $# )); then
     case $1 in
         -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' "$0"; exit 0 ;;
+        --fetch|--branches) mode=$1 ;;   # internal: the branch picker refreshing itself
         *) die "unknown argument: $1 ($usage)" ;;
     esac
 fi
-trap cancel INT
+# A refresh runs inside fzf, which owns the terminal: it must stay silent
+if [[ -n $mode ]]; then exec 2> /dev/null; else trap cancel INT; fi
+
+# Refresh, step 1 (in the background): fetch, failing rather than asking for a
+# password or passphrase, then tell fzf to swap in the new list.
+if [[ $mode == --fetch ]]; then
+    result=ok
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" \
+        git fetch --all --quiet < /dev/null > /dev/null || result=failed
+    printf 'reload-sync("$WT_SELF" --branches %s)\n' "$result"
+    exit 0
+fi
 
 conf=${XDG_CONFIG_HOME:-$HOME/.config}/kaputi/wt
 command -v fzf > /dev/null || die "needs fzf"
@@ -48,6 +63,46 @@ while IFS= read -r line; do
 done < <(git worktree list --porcelain)
 main=${wts[0]}
 
+# Rows for the pickers: "<ref> TAB <name> TAB <age>", fzf shows name and age.
+# lines: branches free to check out. bases: everything a new branch can start
+# from, current first.
+declare -A local_br
+scan_branches() {
+    local b cur ref name age head
+    local_br=() lines=() bases=()
+    while IFS= read -r b; do local_br[$b]=1; done < <(git for-each-ref --format='%(refname:lstrip=2)' refs/heads)
+    cur=$(git symbolic-ref -q HEAD)
+    while IFS=$'\t' read -r ref age; do
+        case $ref in
+            refs/remotes/*/HEAD) continue ;;
+            refs/heads/*)
+                name=${ref#refs/heads/}
+                [[ -n ${busy[$ref]-} ]] || lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
+            refs/remotes/*)
+                name=${ref#refs/remotes/}
+                [[ -n ${local_br[${name#*/}]-} ]] || lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
+        esac
+        if [[ $ref == "$cur" ]]; then
+            bases=("$ref"$'\t'"$name (current)"$'\t'"$age" "${bases[@]}")
+        else
+            bases+=("$ref"$'\t'"$name"$'\t'"$age")
+        fi
+    done < <(git for-each-ref --sort=-committerdate --format='%(refname)%09%(committerdate:relative)' refs/heads refs/remotes)
+    if [[ -z $cur ]] && head=$(git rev-parse -q --verify HEAD); then
+        bases=("$head"$'\t'"HEAD (detached)"$'\t'"$(git log -1 --format=%cr HEAD)" "${bases[@]}")
+    fi
+}
+
+# Refresh, step 2: the list again, under a status line saying how the fetch went
+if [[ $mode == --branches ]]; then
+    status='remotes up to date'
+    [[ ${2-} == failed ]] && status='fetch failed, showing last known branches'
+    scan_branches
+    printf -- '-\t%s\n' "$status"
+    (( ${#lines[@]} )) && printf '%s\n' "${lines[@]}"
+    exit 0
+fi
+
 # One entry per line; blank lines and # comments ignored
 read_list() {
     [[ -f $1 ]] || return 0
@@ -57,48 +112,26 @@ read_list() {
 mapfile -t offers < <(read_list "$conf/offer")
 mapfile -t skips < <(read_list "$conf/skip")
 
-# Remote branches are only as fresh as the last fetch. Ctrl-C skips the
-# fetch; a failed one (offline) only warns.
+# Branch. With a remote, the list opens under a status line while fzf runs the
+# fetch in the background; when it ends the list is swapped in place, with the
+# cursor kept on the same ref. The fetch can't sit inside the reload itself:
+# tracking blocks typing for as long as a reload runs. The height is fixed
+# because a window sized to the first list doesn't grow with the second.
+scan_branches
+live=()
 if [[ -n $(git remote) ]]; then
-    printf 'fetching remotes… (Ctrl-C skips)\n' >&2
-    trap : INT
-    git fetch --all --quiet >&2 \
-        || printf ',wt: fetch did not finish, branch list may be out of date\n' >&2
-    trap cancel INT
-fi
-
-# Branch: "<ref> TAB <name> TAB <age>", fzf shows name and age. lines: branches
-# free to check out. bases: everything a new branch can start from, current first.
-declare -A local_br
-while IFS= read -r b; do local_br[$b]=1; done < <(git for-each-ref --format='%(refname:lstrip=2)' refs/heads)
-cur=$(git symbolic-ref -q HEAD)
-lines=()
-bases=()
-while IFS=$'\t' read -r ref age; do
-    case $ref in
-        refs/remotes/*/HEAD) continue ;;
-        refs/heads/*)
-            name=${ref#refs/heads/}
-            [[ -n ${busy[$ref]-} ]] || lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
-        refs/remotes/*)
-            name=${ref#refs/remotes/}
-            [[ -n ${local_br[${name#*/}]-} ]] || lines+=("$ref"$'\t'"$name"$'\t'"$age") ;;
-    esac
-    if [[ $ref == "$cur" ]]; then
-        bases=("$ref"$'\t'"$name (current)"$'\t'"$age" "${bases[@]}")
-    else
-        bases+=("$ref"$'\t'"$name"$'\t'"$age")
-    fi
-done < <(git for-each-ref --sort=-committerdate --format='%(refname)%09%(committerdate:relative)' refs/heads refs/remotes)
-if [[ -z $cur ]] && head=$(git rev-parse -q --verify HEAD); then
-    bases=("$head"$'\t'"HEAD (detached)"$'\t'"$(git log -1 --format=%cr HEAD)" "${bases[@]}")
+    lines=($'-\tfetching remotes…' "${lines[@]}")
+    WT_SELF=$(realpath -- "${BASH_SOURCE[0]}")
+    export WT_SELF
+    live=(--height 50% --header-lines 1 --track --id-nth 1
+        --bind 'start:bg-transform("$WT_SELF" --fetch)')
 fi
 
 # Ctrl-N prints "new TAB <typed text>"; the header shows the name it would use
 hint='Ctrl-N new branch · Esc cancels'
 pick=$({ (( ${#lines[@]} )) && printf '%s\n' "${lines[@]}"; } | fzf --delimiter '\t' --with-nth 2.. --no-sort \
     --height '~50%' --reverse --prompt 'branch> ' --header "$hint" \
-    --ghost 'filter, or type a new branch name' --with-shell 'sh -c' \
+    --ghost 'filter, or type a new branch name' --with-shell 'sh -c' "${live[@]}" \
     --bind "change:transform-header:[ -z {q} ] && echo '$hint' || printf \"Ctrl-N creates '%s' · Esc cancels\" {q}" \
     --bind 'ctrl-n:become(printf "new\t%s\n" {q})') || cancel
 ref=${pick%%$'\t'*}
@@ -116,6 +149,7 @@ name_problem() {
 
 case $ref in
     new)
+        scan_branches   # again: the fetch may have brought new bases since the list opened
         branch=${pick#new$'\t'}
         while problem=$(name_problem "$branch"); [[ -n $problem ]]; do
             [[ -n $branch ]] && printf ',wt: %s\n' "$problem" >&2
