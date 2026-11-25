@@ -136,6 +136,21 @@ hl.config({
 hl.window_rule({ match = { class = [[org\.wezfurlong\.wezterm]] }, opacity = "0.90 0.80" })
 hl.window_rule({ match = { class = "Alacritty" },                  opacity = "0.90 0.80" })
 
+-- SUPER+o: all windows opaque + no dim (was: kill picom). Reload resets it.
+local transparency_on = true
+local function apply_opaque(w)
+    hl.dispatch(hl.dsp.window.set_prop({ window = w, prop = "opaque",
+        value = transparency_on and "unset" or "1" }))
+end
+hl.bind("SUPER + o", function()
+    transparency_on = not transparency_on
+    hl.config({ decoration = { dim_inactive = transparency_on } })
+    for _, w in ipairs(hl.get_windows()) do apply_opaque(w) end
+end)
+hl.on("window.open", function(w)
+    if not transparency_on then apply_opaque(w) end
+end)
+
 hl.config({ animations = { enabled = true } })
 hl.curve("ease", { type = "bezier", points = { {0.25, 0.1}, {0.25, 1} } })
 hl.animation({ leaf = "windows",    enabled = true, speed = 4, bezier = "ease" })
