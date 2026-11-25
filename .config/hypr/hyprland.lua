@@ -193,6 +193,9 @@ hl.bind("SUPER + d",      exec("launch-cmd"))                               -- a
 
 -- --- WM control ---
 hl.bind("SUPER + CTRL + r",      exec("hyprctl reload"))                    -- reload config (was awesome.restart)
+hl.on("config.reloaded", function()                                         -- popup so a reload is visible
+    hl.notification.create({ text = "Config reloaded", timeout = 2000, icon = 5 })
+end)
 hl.bind("SUPER + CTRL + q",      hl.dsp.exit())                             -- quit Hyprland
 hl.bind("SUPER + X",             exec("hyprlock"))                          -- screen lock
 hl.bind("SUPER + equal",         exec("pkill -SIGUSR1 waybar || waybar &"))
