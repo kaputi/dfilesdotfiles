@@ -242,13 +242,19 @@ gdf() {
 
 # same wrapper as ,j, for the fuzzy picker: letters search, numbers pick rows.
 # `,j2 --add` and friends are passed through to ,j, which owns the config.
+# Line 1 of the output is the dir; line 2, after Shift+Enter, is a registered
+# command (,j2 --add-cmd) to run there. It runs here, not inside $(...), so
+# nvim and friends get the real tty and Ctrl-Z works.
 ,j2() {
   (($#)) && {
     command ,j2 "$@"
     return
   }
-  local d
-  d=$(command ,j2) && [[ -n $d ]] && cd -- "$d"
+  local out
+  out=$(command ,j2) || return
+  local -a r=("${(@f)out}")
+  [[ -n $r[1] ]] && cd -- "$r[1]" || return
+  (($#r < 2)) || eval "$r[2]"
 }
 
 ,wt() {
