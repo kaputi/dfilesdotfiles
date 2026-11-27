@@ -20,7 +20,7 @@
 # Commands: a table of what ~/.config/kaputi/wt/run suggests, one rule per line:
 #   a file glob (matched like offer's), then a command. A rule fires for each
 #   match among the branch's tracked files (a new branch: its base's) and the
-#   files ticked above, outside skip folders. Rows start on; Tab toggles. Once
+#   files ticked above, outside skip folders. Rows start off; Tab toggles. Once
 #   the worktree is made they run with bash in the matched file's folder, in
 #   rule order. A failure doesn't stop the rest; Ctrl-C does. No run file, no
 #   table.
@@ -350,8 +350,8 @@ if (( ${#cmds[@]} )); then
     for c in "${cmds[@]}"; do (( ${#c} > w )) && w=${#c}; done
     for i in "${!cmds[@]}"; do
         printf -v 'cmd_labels[i]' '%-*s  %s' "$w" "${cmds[i]}" "${cmd_dirs[i]:+${cmd_dirs[i]}/}"
-        cmd_cycles[i]=30
-        cmd_state[i]=3
+        cmd_cycles[i]=03
+        cmd_state[i]=0
     done
     table "commands for $where" 'on/off' cmd_labels cmd_cycles cmd_state || cancel
 elif (( ${#rules[@]} )); then
